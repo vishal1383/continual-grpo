@@ -33,7 +33,7 @@ After the smoke test succeeds, run the complete GSM8K training and evaluation su
 ./run_all.sh full
 ```
 
-This script asks Docker to build the image, starts or reuses the persistent container, and runs training, evaluation, and reporting inside it. Docker reuses cached build layers when nothing changed.
+The first run builds `continual-grpo:latest`. Later runs reuse that image and the same persistent Compose container; they do not rebuild or use `--rm`. If dependencies change, rebuild manually with `docker compose build experiment`.
 
 To enter the persistent environment after or during a run:
 

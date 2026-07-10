@@ -26,7 +26,7 @@ Then run the complete experiment:
 ./run_all.sh full
 ```
 
-The script runs `docker compose build`, starts or reuses the persistent Compose service, and runs these three phases inside it. Docker reuses cached layers, so unchanged prerequisites are not reinstalled:
+The first run builds `continual-grpo:latest`. Every later run reuses that image and the same persistent Compose container without rebuilding or using `--rm`, then runs these three phases inside it:
 
 ```bash
 python3 -m continual_grpo.train --config configs/default.yaml --resume
@@ -36,7 +36,7 @@ python3 -m continual_grpo.report --config configs/default.yaml
 
 Outputs remain in the host's `outputs/` directory and the container remains available after completion.
 
-Normal repeated runs reuse the existing image and container. Rebuild explicitly only after changing `Dockerfile`, `pyproject.toml`, or another installed dependency:
+Rebuild explicitly only after changing `Dockerfile`, `pyproject.toml`, or another installed dependency:
 
 ```bash
 docker compose build experiment

@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 MODE="${1:-smoke}"
+IMAGE="continual-grpo:latest"
 case "$MODE" in
   smoke)
     CONFIG="configs/smoke.yaml"
@@ -19,7 +20,9 @@ case "$MODE" in
     ;;
 esac
 
-docker compose build experiment
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  docker compose build experiment
+fi
 docker compose up -d --no-build experiment
 docker compose exec experiment python3 -m continual_grpo.train --config "$CONFIG" --resume
 docker compose exec experiment python3 -m continual_grpo.evaluate --config "$CONFIG" --allow-code-execution "${EVAL_LIMIT[@]}"

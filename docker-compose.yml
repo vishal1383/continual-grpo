@@ -6,6 +6,7 @@ services:
     ipc: host
     shm_size: 32gb
     volumes:
+      - .:/workspace
       - ./outputs:/workspace/outputs
       - hf-cache:/root/.cache/huggingface
     deploy:

@@ -76,7 +76,8 @@ def run(config_path: str, resume: bool = False) -> None:
                               target_modules="all-linear", task_type="CAUSAL_LM")
         trainer = GRPOTrainer(model=model, reward_funcs=[correctness_reward, format_reward],
                               args=args, train_dataset=train_data, peft_config=peft)
-        result = trainer.train(resume_from_checkpoint=resume)
+        has_checkpoint = any(stage.glob("checkpoint-*"))
+        result = trainer.train(resume_from_checkpoint=True if resume and has_checkpoint else None)
         trainer.save_model(str(final_adapter))
         history.append({"stage": index, "task": task["name"], "metrics": result.metrics})
         dump_json(root / "train_history.json", history)

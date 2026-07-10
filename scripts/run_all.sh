@@ -2,6 +2,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${1:-configs/general.yaml}"
-continual-grpo --config "$CONFIG" --resume
-continual-eval --config "$CONFIG" --allow-code-execution
-continual-report --config "$CONFIG"
+python -m continual_grpo.train --config "$CONFIG" --resume
+python -m continual_grpo.evaluate --config "$CONFIG" --allow-code-execution
+python -m continual_grpo.report --config "$CONFIG"

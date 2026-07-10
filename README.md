@@ -12,7 +12,7 @@ This repository deliberately excludes archived experiments, old distillation mod
 - Continual drift: each metric's delta from the untouched base model after every training stage.
 - Training intervention: GRPO reward optimization with standard reference-policy KL (`kl_beta`).
 
-HumanEval executes model-generated Python. Run it only in the provided isolated container; evaluation requires the explicit `--allow-code-execution` switch.
+HumanEval is one protected-capability benchmark in the same evaluation suite. Because its metric executes generated Python, the evaluator requires the explicit `--allow-code-execution` acknowledgement.
 
 ## Prerequisites
 
@@ -21,14 +21,28 @@ HumanEval executes model-generated Python. Run it only in the provided isolated 
 - Hugging Face access/network connectivity for model and dataset downloads.
 - GB10: use the vendor CUDA/PyTorch base if it is required by your DGX Spark image; pass it with `--build-arg BASE_IMAGE=...`.
 
-## Docker: portable run
+## Docker environment and Python commands
 
 ```bash
 docker compose build
-docker compose run --rm experiment scripts/run_all.sh configs/general.yaml
+docker compose run --rm experiment
 ```
 
-The general profile uses Qwen2.5-0.5B and 256 training examples so it can validate the pipeline on a conventional CUDA GPU. Remove `max_samples` limits for a research run.
+You are now at `/workspace` inside the complete GPU environment. Run each phase explicitly:
+
+```bash
+python -m continual_grpo.train --config configs/general.yaml --resume
+python -m continual_grpo.evaluate --config configs/general.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/general.yaml
+```
+
+Or run the same three Python commands through one wrapper:
+
+```bash
+scripts/run_all.sh configs/general.yaml
+```
+
+Type `exit` to leave the container. The general profile uses Qwen2.5-0.5B and 256 training examples so it can validate the pipeline on a conventional CUDA GPU. Remove `max_samples` limits for a research run.
 
 ## GB10 / DGX Spark example
 
@@ -36,16 +50,27 @@ The 7B profile is designed for a single 128 GB unified-memory GB10 system:
 
 ```bash
 docker compose build --build-arg BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
-docker compose run --rm experiment scripts/run_all.sh configs/gb10.yaml
+docker compose run --rm experiment
+python -m continual_grpo.train --config configs/gb10.yaml --resume
+python -m continual_grpo.evaluate --config configs/gb10.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/gb10.yaml
 ```
 
 If the host's NVIDIA-provided PyTorch image is named `gb10-rl-saved:latest`, use `docker build --build-arg BASE_IMAGE=gb10-rl-saved:latest -t continual-grpo .` and then:
 
 ```bash
-docker run --rm --gpus all --ipc=host --shm-size=32g \
+docker run --rm -it --gpus all --ipc=host --shm-size=32g \
   -v "$PWD/outputs:/workspace/outputs" \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  continual-grpo scripts/run_all.sh configs/gb10.yaml
+  continual-grpo
+```
+
+Then, inside that container:
+
+```bash
+python -m continual_grpo.train --config configs/gb10.yaml --resume
+python -m continual_grpo.evaluate --config configs/gb10.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/gb10.yaml
 ```
 
 ## Native installation and individual commands
@@ -54,9 +79,9 @@ docker run --rm --gpus all --ipc=host --shm-size=32g \
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-continual-grpo --config configs/general.yaml --resume
-continual-eval --config configs/general.yaml --allow-code-execution
-continual-report --config configs/general.yaml
+python -m continual_grpo.train --config configs/general.yaml --resume
+python -m continual_grpo.evaluate --config configs/general.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/general.yaml
 ```
 
 Results are written under the configured `output_dir`: resolved config, stage adapters, raw evaluation JSON/sample logs, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.

@@ -3,6 +3,8 @@ services:
     image: continual-grpo:v2
     build: .
     entrypoint: ["sleep", "infinity"]
+    environment:
+      TORCH_DISABLE_NATIVE_JIT: "1"
     ipc: host
     shm_size: 32gb
     volumes:

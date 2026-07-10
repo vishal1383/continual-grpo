@@ -6,4 +6,5 @@ WORKDIR /workspace
 COPY . .
 RUN python3 -m venv /opt/venv && /opt/venv/bin/pip install -e .
 ENV PATH="/opt/venv/bin:${PATH}"
+ENV TORCH_DISABLE_NATIVE_JIT=1
 ENTRYPOINT ["bash"]

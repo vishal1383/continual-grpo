@@ -41,3 +41,7 @@ def main() -> None:
                 raise SystemExit("HumanEval executes generated code. Re-run inside Docker with --allow-code-execution.")
             cmd += ["--confirm_run_unsafe_code"]
         subprocess.run(cmd, check=True)
+
+
+if __name__ == "__main__":
+    main()

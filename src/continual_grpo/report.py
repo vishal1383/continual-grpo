@@ -33,3 +33,7 @@ def main() -> None:
     summary = frame.pivot_table(index=["task", "metric"], columns="stage", values="value")
     (root / "analysis.md").write_text("# Capability and drift report\n\n" + summary.to_markdown() + "\n")
     print(f"Wrote {root / 'analysis.csv'} and {root / 'analysis.md'}")
+
+
+if __name__ == "__main__":
+    main()

@@ -90,3 +90,7 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     run(args.config, args.resume)
+
+
+if __name__ == "__main__":
+    main()

@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-CONFIG="${1:-configs/general.yaml}"
+CONFIG="configs/default.yaml"
 IMAGE="continual-grpo:latest"
 
 die() {

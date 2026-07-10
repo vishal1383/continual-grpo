@@ -16,24 +16,16 @@ All training, evaluation, and analysis run inside Docker. The container is persi
 
 ## Run everything
 
-General/smaller GPU profile:
-
 ```bash
-./run_all.sh configs/general.yaml
+./run_all.sh
 ```
 
-GB10/DGX Spark profile:
+The script checks Docker, Compose, the configuration, and actual GPU visibility with `nvidia-smi` inside the container. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
 
 ```bash
-./run_all.sh configs/gb10.yaml
-```
-
-The script checks Docker, Compose, the selected config, and actual GPU visibility with `nvidia-smi` inside the container. It supports both legacy NVIDIA runtime and modern CDI-style GPU setups. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
-
-```bash
-python -m continual_grpo.train --config CONFIG --resume
-python -m continual_grpo.evaluate --config CONFIG --allow-code-execution
-python -m continual_grpo.report --config CONFIG
+python -m continual_grpo.train --config configs/default.yaml --resume
+python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/default.yaml
 ```
 
 Outputs remain in the host's `outputs/` directory and the container remains available after completion.

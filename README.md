@@ -24,10 +24,10 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ## Docker environment and Python commands
 
 ```bash
-./run_all.sh configs/general.yaml
+./run_all.sh
 ```
 
-This single host-side script checks Docker/Compose, validates actual GPU access inside the container (including GB10/CDI setups), builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for GB10 usage and container lifecycle commands.
+This single host-side script checks Docker/Compose, validates actual GPU access inside the container, builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. The same configuration is used on any supported NVIDIA GPU machine.
 
 To enter the persistent environment after or during a run:
 
@@ -38,37 +38,12 @@ docker compose exec experiment bash
 Inside `/workspace`, the phases can also be run separately:
 
 ```bash
-python -m continual_grpo.train --config configs/general.yaml --resume
-python -m continual_grpo.evaluate --config configs/general.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/general.yaml
+python -m continual_grpo.train --config configs/default.yaml --resume
+python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/default.yaml
 ```
 
-The general profile uses Qwen2.5-0.5B and 256 training examples so it can validate the pipeline on a conventional CUDA GPU. Remove `max_samples` limits for a research run.
-
-## GB10 / DGX Spark example
-
-The 7B profile is designed for a single 128 GB unified-memory GB10 system:
-
-```bash
-./run_all.sh configs/gb10.yaml
-```
-
-If the host's NVIDIA-provided PyTorch image is named `gb10-rl-saved:latest`, use `docker build --build-arg BASE_IMAGE=gb10-rl-saved:latest -t continual-grpo .` and then:
-
-```bash
-docker run -it --gpus all --ipc=host --shm-size=32g \
-  -v "$PWD/outputs:/workspace/outputs" \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  continual-grpo
-```
-
-Then, inside that container:
-
-```bash
-python -m continual_grpo.train --config configs/gb10.yaml --resume
-python -m continual_grpo.evaluate --config configs/gb10.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/gb10.yaml
-```
+The default uses Qwen2.5-0.5B and 256 training examples so it fits broadly. Edit `configs/default.yaml` to select a larger model or full dataset when more compute is available.
 
 ## Native installation and individual commands
 
@@ -76,9 +51,9 @@ python -m continual_grpo.report --config configs/gb10.yaml
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python -m continual_grpo.train --config configs/general.yaml --resume
-python -m continual_grpo.evaluate --config configs/general.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/general.yaml
+python -m continual_grpo.train --config configs/default.yaml --resume
+python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python -m continual_grpo.report --config configs/default.yaml
 ```
 
 Results are written under the configured `output_dir`: resolved config, stage adapters, raw evaluation JSON/sample logs, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.

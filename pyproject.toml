@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "continual-grpo"
+version = "0.1.0"
+description = "Minimal continual GRPO baseline with KL anchoring and capability-drift evaluation"
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.4",
+  "transformers>=4.48",
+  "datasets>=3.0",
+  "accelerate>=1.2",
+  "trl>=0.17,<0.20",
+  "peft>=0.14",
+  "bitsandbytes>=0.45; platform_machine == 'x86_64'",
+  "lm-eval[api]>=0.4.7",
+  "pyyaml>=6",
+  "pandas>=2",
+]
+
+[project.scripts]
+continual-grpo = "continual_grpo.train:main"
+continual-eval = "continual_grpo.evaluate:main"
+continual-report = "continual_grpo.report:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

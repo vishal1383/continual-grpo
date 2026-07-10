@@ -1,0 +1,24 @@
+model: Qwen/Qwen2.5-7B-Instruct
+output_dir: outputs/gb10
+seed: 42
+kl_beta: 0.04
+learning_rate: 2.0e-6
+epochs: 1
+per_device_batch_size: 2
+gradient_accumulation_steps: 8
+num_generations: 8
+max_prompt_length: 768
+max_completion_length: 384
+bf16: true
+gradient_checkpointing: true
+use_lora: true
+lora_r: 16
+tasks:
+  - name: gsm8k
+    dataset: openai/gsm8k
+    subset: main
+    split: train
+    prompt_field: question
+    answer_field: answer
+    max_samples: 0
+eval_tasks: [gsm8k, humaneval, bbq]

@@ -27,7 +27,7 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ./run_all.sh configs/general.yaml
 ```
 
-This single host-side script checks Docker/Compose/NVIDIA prerequisites, builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for GB10 usage and container lifecycle commands.
+This single host-side script checks Docker/Compose, validates actual GPU access inside the container (including GB10/CDI setups), builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for GB10 usage and container lifecycle commands.
 
 To enter the persistent environment after or during a run:
 

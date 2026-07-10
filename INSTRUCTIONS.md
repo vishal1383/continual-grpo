@@ -28,7 +28,7 @@ GB10/DGX Spark profile:
 ./run_all.sh configs/gb10.yaml
 ```
 
-The script checks Docker, Compose, NVIDIA Container Toolkit, the selected config, and GPU visibility. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
+The script checks Docker, Compose, the selected config, and actual GPU visibility with `nvidia-smi` inside the container. It supports both legacy NVIDIA runtime and modern CDI-style GPU setups. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
 
 ```bash
 python -m continual_grpo.train --config CONFIG --resume

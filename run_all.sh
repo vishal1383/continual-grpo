@@ -17,10 +17,6 @@ docker info >/dev/null 2>&1 || die "Docker daemon is not available to this user.
 docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is not installed."
 [[ -f "$CONFIG" ]] || die "Config not found: $CONFIG"
 
-echo "Checking NVIDIA GPU access from Docker..."
-docker info --format '{{json .Runtimes}}' | grep -q nvidia \
-  || die "NVIDIA Container Toolkit is not configured (the nvidia runtime is missing)."
-
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo "Image $IMAGE not found; building it with all Python prerequisites..."
   docker compose build experiment
@@ -30,10 +26,14 @@ else
 fi
 
 echo "Starting or reusing the persistent experiment container..."
-docker compose up -d --no-build experiment
+if ! docker compose up -d --no-build experiment; then
+  die "The GPU container did not start. Check 'docker compose logs experiment' and verify Docker GPU/CDI support."
+fi
 
 echo "Verifying the GPU inside the container..."
-docker compose exec experiment nvidia-smi >/dev/null
+if ! docker compose exec experiment nvidia-smi; then
+  die "The container started but cannot access the NVIDIA GPU. Check the NVIDIA Container Toolkit/CDI configuration."
+fi
 
 echo "Training: $CONFIG"
 docker compose exec experiment python -m continual_grpo.train --config "$CONFIG" --resume

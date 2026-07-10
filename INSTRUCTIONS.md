@@ -26,7 +26,7 @@ Then run the complete experiment:
 ./run_all.sh full
 ```
 
-The first run builds `continual-grpo:latest`. Every later run reuses that image and the same persistent Compose container without rebuilding or using `--rm`, then runs these three phases inside it:
+The first run builds `continual-grpo:v2`. Every later run reuses that image and the same persistent Compose container without rebuilding or using `--rm`, then runs these three phases inside it:
 
 ```bash
 python3 -m continual_grpo.train --config configs/default.yaml --resume

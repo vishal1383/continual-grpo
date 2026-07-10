@@ -33,7 +33,7 @@ After the smoke test succeeds, run the complete GSM8K training and evaluation su
 ./run_all.sh full
 ```
 
-The first run builds `continual-grpo:latest`. Later runs reuse that image and the same persistent Compose container; they do not rebuild or use `--rm`. If dependencies change, rebuild manually with `docker compose build experiment`.
+The first run builds `continual-grpo:v2`. Later runs reuse that image and the same persistent Compose container; they do not rebuild or use `--rm`. If dependencies change, rebuild manually with `docker compose build experiment`.
 
 To enter the persistent environment after or during a run:
 

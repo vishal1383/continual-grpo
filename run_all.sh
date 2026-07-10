@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 MODE="${1:-smoke}"
-IMAGE="continual-grpo:latest"
+IMAGE="continual-grpo:v2"
 case "$MODE" in
   smoke)
     CONFIG="configs/smoke.yaml"

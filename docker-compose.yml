@@ -1,6 +1,6 @@
 services:
   experiment:
-    image: continual-grpo:latest
+    image: continual-grpo:v2
     build: .
     entrypoint: ["sleep", "infinity"]
     ipc: host

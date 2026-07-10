@@ -17,7 +17,7 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ## Prerequisites
 
 - Linux, Git, and Docker 27+ with Compose.
-- NVIDIA driver and NVIDIA Container Toolkit (`docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu24.04 nvidia-smi` must work).
+- NVIDIA driver and NVIDIA Container Toolkit.
 - Hugging Face access/network connectivity for model and dataset downloads.
 - GB10: use the vendor CUDA/PyTorch base if it is required by your DGX Spark image; pass it with `--build-arg BASE_IMAGE=...`.
 

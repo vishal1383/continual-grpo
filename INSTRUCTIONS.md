@@ -17,7 +17,13 @@ All training, evaluation, and analysis run inside Docker. The container is persi
 ## Run everything
 
 ```bash
-./run_all.sh
+./run_all.sh smoke
+```
+
+Then run the complete experiment:
+
+```bash
+./run_all.sh full
 ```
 
 The script runs `docker compose build`, starts or reuses the persistent Compose service, and runs these three phases inside it. Docker reuses cached layers, so unchanged prerequisites are not reinstalled:

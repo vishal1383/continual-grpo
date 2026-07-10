@@ -24,7 +24,13 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ## Docker environment and Python commands
 
 ```bash
-./run_all.sh
+./run_all.sh smoke
+```
+
+After the smoke test succeeds, run the complete GSM8K training and evaluation suite:
+
+```bash
+./run_all.sh full
 ```
 
 This script asks Docker to build the image, starts or reuses the persistent container, and runs training, evaluation, and reporting inside it. Docker reuses cached build layers when nothing changed.

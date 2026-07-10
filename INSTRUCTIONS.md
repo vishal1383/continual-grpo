@@ -28,7 +28,7 @@ GB10/DGX Spark profile:
 ./run_all.sh configs/gb10.yaml
 ```
 
-The script builds the image, starts a persistent Compose service, and runs these three phases inside it:
+The script checks Docker, Compose, NVIDIA Container Toolkit, the selected config, and GPU visibility. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
 
 ```bash
 python -m continual_grpo.train --config CONFIG --resume
@@ -37,6 +37,12 @@ python -m continual_grpo.report --config CONFIG
 ```
 
 Outputs remain in the host's `outputs/` directory and the container remains available after completion.
+
+Normal repeated runs reuse the existing image and container. Rebuild explicitly only after changing `Dockerfile`, `pyproject.toml`, or another installed dependency:
+
+```bash
+docker compose build experiment
+```
 
 ## Enter the existing container
 

@@ -27,7 +27,7 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ./run_all.sh configs/general.yaml
 ```
 
-This host-side script builds and starts a persistent container, runs every phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for prerequisites, individual Python commands, GB10 usage, and container lifecycle commands.
+This single host-side script checks Docker/Compose/NVIDIA prerequisites, builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for GB10 usage and container lifecycle commands.
 
 To enter the persistent environment after or during a run:
 

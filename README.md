@@ -24,11 +24,18 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ## Docker environment and Python commands
 
 ```bash
-docker compose build
-docker compose run --rm experiment
+./run_all.sh configs/general.yaml
 ```
 
-You are now at `/workspace` inside the complete GPU environment. Run each phase explicitly:
+This host-side script builds and starts a persistent container, runs every phase inside it, and leaves the container running. See [INSTRUCTIONS.md](INSTRUCTIONS.md) for prerequisites, individual Python commands, GB10 usage, and container lifecycle commands.
+
+To enter the persistent environment after or during a run:
+
+```bash
+docker compose exec experiment bash
+```
+
+Inside `/workspace`, the phases can also be run separately:
 
 ```bash
 python -m continual_grpo.train --config configs/general.yaml --resume
@@ -36,30 +43,20 @@ python -m continual_grpo.evaluate --config configs/general.yaml --allow-code-exe
 python -m continual_grpo.report --config configs/general.yaml
 ```
 
-Or run the same three Python commands through one wrapper:
-
-```bash
-scripts/run_all.sh configs/general.yaml
-```
-
-Type `exit` to leave the container. The general profile uses Qwen2.5-0.5B and 256 training examples so it can validate the pipeline on a conventional CUDA GPU. Remove `max_samples` limits for a research run.
+The general profile uses Qwen2.5-0.5B and 256 training examples so it can validate the pipeline on a conventional CUDA GPU. Remove `max_samples` limits for a research run.
 
 ## GB10 / DGX Spark example
 
 The 7B profile is designed for a single 128 GB unified-memory GB10 system:
 
 ```bash
-docker compose build --build-arg BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
-docker compose run --rm experiment
-python -m continual_grpo.train --config configs/gb10.yaml --resume
-python -m continual_grpo.evaluate --config configs/gb10.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/gb10.yaml
+./run_all.sh configs/gb10.yaml
 ```
 
 If the host's NVIDIA-provided PyTorch image is named `gb10-rl-saved:latest`, use `docker build --build-arg BASE_IMAGE=gb10-rl-saved:latest -t continual-grpo .` and then:
 
 ```bash
-docker run --rm -it --gpus all --ipc=host --shm-size=32g \
+docker run -it --gpus all --ipc=host --shm-size=32g \
   -v "$PWD/outputs:/workspace/outputs" \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   continual-grpo

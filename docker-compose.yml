@@ -1,6 +1,7 @@
 services:
   experiment:
     build: .
+    entrypoint: ["sleep", "infinity"]
     ipc: host
     shm_size: 32gb
     volumes:

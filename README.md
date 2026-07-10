@@ -27,7 +27,7 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ./run_all.sh
 ```
 
-This single host-side script checks Docker/Compose, validates actual GPU access inside the container, builds the complete image only if it is missing, starts or reuses the persistent container, runs every Python phase inside it, and leaves the container running. The same configuration is used on any supported NVIDIA GPU machine.
+This script asks Docker to build the image, starts or reuses the persistent container, and runs training, evaluation, and reporting inside it. Docker reuses cached build layers when nothing changed.
 
 To enter the persistent environment after or during a run:
 
@@ -38,9 +38,9 @@ docker compose exec experiment bash
 Inside `/workspace`, the phases can also be run separately:
 
 ```bash
-python -m continual_grpo.train --config configs/default.yaml --resume
-python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/default.yaml
+python3 -m continual_grpo.train --config configs/default.yaml --resume
+python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
 The default uses Qwen2.5-0.5B and 256 training examples so it fits broadly. Edit `configs/default.yaml` to select a larger model or full dataset when more compute is available.
@@ -51,9 +51,9 @@ The default uses Qwen2.5-0.5B and 256 training examples so it fits broadly. Edit
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-python -m continual_grpo.train --config configs/default.yaml --resume
-python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/default.yaml
+python3 -m continual_grpo.train --config configs/default.yaml --resume
+python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
 Results are written under the configured `output_dir`: resolved config, stage adapters, raw evaluation JSON/sample logs, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.

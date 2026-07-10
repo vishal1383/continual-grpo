@@ -20,12 +20,12 @@ All training, evaluation, and analysis run inside Docker. The container is persi
 ./run_all.sh
 ```
 
-The script checks Docker, Compose, the configuration, and actual GPU visibility with `nvidia-smi` inside the container. It builds the image with all Python prerequisites only when `continual-grpo:latest` does not exist, starts or reuses the persistent Compose service, and runs these three phases inside it:
+The script runs `docker compose build`, starts or reuses the persistent Compose service, and runs these three phases inside it. Docker reuses cached layers, so unchanged prerequisites are not reinstalled:
 
 ```bash
-python -m continual_grpo.train --config configs/default.yaml --resume
-python -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
-python -m continual_grpo.report --config configs/default.yaml
+python3 -m continual_grpo.train --config configs/default.yaml --resume
+python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
 Outputs remain in the host's `outputs/` directory and the container remains available after completion.

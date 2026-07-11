@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from datasets import load_dataset
@@ -14,15 +15,24 @@ from .common import dump_json, load_config, model_list, model_slug
 SYSTEM = "Solve carefully. Put the final answer after ####."
 
 
-def _final(text: str) -> str:
-    matches = re.findall(r"####\s*([^\n]+)", text)
-    return (matches[-1] if matches else text.strip().splitlines()[-1]).replace(",", "").strip()
+def _number(text: str) -> Decimal | None:
+    """Extract the final numeric answer, preferring text after GSM8K's #### marker."""
+    marked = re.findall(r"####\s*([^\n]+)", str(text))
+    search = marked[-1] if marked else str(text)
+    numbers = re.findall(r"[-+]?\d[\d,]*(?:\.\d+)?", search)
+    if not numbers:
+        return None
+    try:
+        return Decimal(numbers[-1].replace(",", ""))
+    except InvalidOperation:
+        return None
 
 
 def correctness_reward(completions, answer, **_):
     """Exact-answer verifier used by GRPO; one reward per sampled completion."""
     texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
-    return [1.0 if _final(text) == _final(gold) else 0.0 for text, gold in zip(texts, answer)]
+    return [1.0 if _number(text) is not None and _number(text) == _number(gold) else 0.0
+            for text, gold in zip(texts, answer)]
 
 
 def format_reward(completions, **_):
@@ -74,6 +84,7 @@ def train_model_stages(cfg: dict, root: Path, base_model: str, resume: bool, his
             bf16=bool(cfg.get("bf16", True)), fp16=not bool(cfg.get("bf16", True)),
             gradient_checkpointing=bool(cfg.get("gradient_checkpointing", True)),
             gradient_checkpointing_kwargs={"use_reentrant": False},
+            max_grad_norm=float(cfg.get("max_grad_norm", 1.0)),
             logging_steps=1, save_strategy="epoch", report_to="none",
         )
         peft = None

@@ -9,7 +9,8 @@ gradient_accumulation_steps: 8
 num_generations: 4
 max_prompt_length: 512
 max_completion_length: 256
-bf16: false
+bf16: true
+max_grad_norm: 1.0
 gradient_checkpointing: true
 use_lora: true
 lora_r: 8

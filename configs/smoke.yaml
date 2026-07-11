@@ -1,8 +1,5 @@
 models:
   - Qwen/Qwen2.5-0.5B-Instruct
-  - Qwen/Qwen2.5-1.5B-Instruct
-  - Qwen/Qwen2.5-3B-Instruct
-  - Qwen/Qwen2.5-7B-Instruct
 output_dir: outputs/smoke
 seed: 42
 kl_beta: 0.04
@@ -13,7 +10,8 @@ gradient_accumulation_steps: 1
 num_generations: 2
 max_prompt_length: 256
 max_completion_length: 64
-bf16: false
+bf16: true
+max_grad_norm: 1.0
 gradient_checkpointing: true
 use_lora: true
 lora_r: 8

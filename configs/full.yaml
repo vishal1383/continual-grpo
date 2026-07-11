@@ -1,4 +1,8 @@
-model: Qwen/Qwen2.5-0.5B-Instruct
+models:
+  - Qwen/Qwen2.5-0.5B-Instruct
+  - Qwen/Qwen2.5-1.5B-Instruct
+  - Qwen/Qwen2.5-3B-Instruct
+  - Qwen/Qwen2.5-7B-Instruct
 output_dir: outputs/full
 seed: 42
 kl_beta: 0.04

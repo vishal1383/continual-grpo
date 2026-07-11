@@ -8,7 +8,7 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
-from .common import dump_json, load_config
+from .common import dump_json, load_config, model_list, model_slug
 
 
 SYSTEM = "Solve carefully. Put the final answer after ####."
@@ -47,10 +47,15 @@ def run(config_path: str, resume: bool = False) -> None:
     root = Path(cfg["output_dir"])
     root.mkdir(parents=True, exist_ok=True)
     dump_json(root / "resolved_config.json", cfg)
-    model = cfg["model"]
     history = []
+    for base_model in model_list(cfg):
+        train_model_stages(cfg, root, base_model, resume, history)
+
+
+def train_model_stages(cfg: dict, root: Path, base_model: str, resume: bool, history: list) -> None:
+    model = base_model
     for index, task in enumerate(cfg["tasks"], start=1):
-        stage = root / f"stage_{index:02d}_{task['name']}"
+        stage = root / model_slug(base_model) / f"stage_{index:02d}_{task['name']}"
         final_adapter = stage / "final_adapter"
         if resume and final_adapter.exists():
             model = str(final_adapter)
@@ -82,7 +87,7 @@ def run(config_path: str, resume: bool = False) -> None:
         has_checkpoint = any(stage.glob("checkpoint-*"))
         result = trainer.train(resume_from_checkpoint=True if resume and has_checkpoint else None)
         trainer.save_model(str(final_adapter))
-        history.append({"stage": index, "task": task["name"], "metrics": result.metrics})
+        history.append({"model": base_model, "stage": index, "task": task["name"], "metrics": result.metrics})
         dump_json(root / "train_history.json", history)
         model = str(final_adapter)
 

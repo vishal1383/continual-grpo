@@ -62,7 +62,13 @@ python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-ex
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
-Results are written under the configured `output_dir`: resolved config, stage adapters, raw evaluation JSON/sample logs, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.
+Results are written under the configured `output_dir` with one subdirectory per base model: stage adapters under `<model_slug>/stage_NN_<task>/`, raw evaluation JSON under `eval/<model_slug>/<stage>/<task>/`, plus the resolved config, `train_history.json`, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.
+
+## Model sizes and smoke evaluation
+
+The `models` list in each config runs the entire task stream and evaluation once per base model. Smoke and full cover Qwen2.5-Instruct 0.5B, 1.5B, 3B, and 7B — the sizes whose GRPO LoRA training fits the container's 70 GiB memory limit. A single `model:` key is still accepted (see `configs/default.yaml`).
+
+The smoke config exercises full functionality on minimal data: it trains each model on one example, evaluates GSM8K and HumanEval with a per-task `eval_limits` of 1, and swaps BBQ for the local `bbq_smoke` task (defined in `lm_eval_tasks/` and loaded via `--include_path`). `bbq_smoke` keeps one document per BBQ (category, context) bucket — 22 documents — so every bias metric has data and none degenerates to NaN, which is what happens when a plain `--limit` takes rows from only the first category.
 
 ## Adding a continual task
 

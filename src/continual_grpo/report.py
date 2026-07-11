@@ -18,19 +18,19 @@ def main() -> None:
     rows = []
     for file in sorted((root / "eval").glob("**/results*.json")):
         payload = json.loads(file.read_text())
-        stage = file.relative_to(root / "eval").parts[0]
+        model, stage = file.relative_to(root / "eval").parts[:2]
         for task, metrics in payload.get("results", {}).items():
             for metric, value in metrics.items():
                 if isinstance(value, (int, float)) and not metric.endswith("_stderr"):
-                    rows.append({"stage": stage, "task": task, "metric": metric, "value": value})
+                    rows.append({"model": model, "stage": stage, "task": task, "metric": metric, "value": value})
     if not rows:
         raise SystemExit(f"No evaluation JSON found under {root / 'eval'}")
     frame = pd.DataFrame(rows)
-    base = frame[frame.stage == "stage_00_base"][["task", "metric", "value"]].rename(columns={"value": "base"})
-    frame = frame.merge(base, on=["task", "metric"], how="left")
+    base = frame[frame.stage == "stage_00_base"][["model", "task", "metric", "value"]].rename(columns={"value": "base"})
+    frame = frame.merge(base, on=["model", "task", "metric"], how="left")
     frame["delta_from_base"] = frame.value - frame.base
     frame.to_csv(root / "analysis.csv", index=False)
-    summary = frame.pivot_table(index=["task", "metric"], columns="stage", values="value")
+    summary = frame.pivot_table(index=["model", "task", "metric"], columns="stage", values="value")
     (root / "analysis.md").write_text("# Capability and drift report\n\n" + summary.to_markdown() + "\n")
     print(f"Wrote {root / 'analysis.csv'} and {root / 'analysis.md'}")
 

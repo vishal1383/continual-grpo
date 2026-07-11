@@ -5,16 +5,19 @@ import os
 import subprocess
 from pathlib import Path
 
-from .common import load_config
+from .common import load_config, model_list, model_slug
 
 
 def checkpoint_series(cfg: dict) -> list[tuple[str, str, str | None]]:
     root = Path(cfg["output_dir"])
-    points = [("stage_00_base", cfg["model"], None)]
-    for i, task in enumerate(cfg["tasks"], 1):
-        adapter = root / f"stage_{i:02d}_{task['name']}" / "final_adapter"
-        if adapter.exists():
-            points.append((f"stage_{i:02d}_{task['name']}", cfg["model"], str(adapter)))
+    points = []
+    for model in model_list(cfg):
+        slug = model_slug(model)
+        points.append((f"{slug}/stage_00_base", model, None))
+        for i, task in enumerate(cfg["tasks"], 1):
+            adapter = root / slug / f"stage_{i:02d}_{task['name']}" / "final_adapter"
+            if adapter.exists():
+                points.append((f"{slug}/stage_{i:02d}_{task['name']}", model, str(adapter)))
     return points
 
 

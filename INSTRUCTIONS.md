@@ -2,6 +2,17 @@
 
 All training, evaluation, and analysis run inside Docker. The container is persistent: the commands below do not use `--rm`, and the full runner does not stop or delete it afterward.
 
+Training uses one handwritten loop in `src/continual_grpo/custom_grpo.py`, not TRL:
+
+```text
+grpo        = clipped vanilla GRPO + reference KL
+skill_ortho = the same loss, then protected top-k spectral gradient transform
+copsd       = the same GRPO + KL plus additive contrastive OPSD
+combined    = GRPO + KL + OPSD, then the same spectral transform
+```
+
+Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl`.
+
 ## Prerequisites
 
 1. Install Docker Engine with the Compose plugin.

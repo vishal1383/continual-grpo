@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from continual_grpo.train import _number, correctness_reward
+from continual_grpo.rewards import _number, correctness_reward
 
 
 def test_number_prefers_final_marked_answer():

@@ -1,7 +1,7 @@
 methods: [grpo, skill_ortho, copsd, combined]
 models:
   - Qwen/Qwen2.5-7B-Instruct
-output_dir: outputs/full_7b_handwritten
+output_dir: outputs/full_7b_handwritten_sgd_v2
 protected_anchors:
   - name: mmlu
     dataset: cais/mmlu

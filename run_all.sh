@@ -8,11 +8,9 @@ IMAGE="continual-grpo:v2"
 case "$MODE" in
   smoke)
     CONFIG="configs/smoke.yaml"
-    EVAL_LIMIT=(--limit 1)
     ;;
   full)
     CONFIG="configs/full.yaml"
-    EVAL_LIMIT=()
     ;;
   *)
     echo "Usage: $0 smoke|full" >&2
@@ -25,7 +23,7 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 fi
 docker compose up -d --no-build experiment
 docker compose exec experiment python3 -m continual_grpo.train --config "$CONFIG" --resume
-docker compose exec experiment python3 -m continual_grpo.evaluate --config "$CONFIG" --allow-code-execution "${EVAL_LIMIT[@]}"
+docker compose exec experiment python3 -m continual_grpo.evaluate --config "$CONFIG" --allow-code-execution
 docker compose exec experiment python3 -m continual_grpo.report --config "$CONFIG"
 
 echo "Run complete. Container is still running."

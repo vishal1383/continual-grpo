@@ -21,7 +21,10 @@ tasks:
     prompt_field: question
     answer_field: answer
     max_samples: 1
-eval_tasks: [gsm8k, humaneval, bbq]
+eval_tasks: [gsm8k, humaneval, bbq_smoke]
+eval_limits:
+  gsm8k: 1
+  humaneval: 1
 eval_batch_size: 1
 max_memory_per_gpu: 70GB
 vllm_gpu_memory_utilization: 0.70

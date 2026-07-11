@@ -29,6 +29,8 @@ def main() -> None:
     out = Path(cfg["output_dir"]) / "eval"
     out.mkdir(parents=True, exist_ok=True)
     tasks = cfg.get("eval_tasks", ["gsm8k", "humaneval", "bbq"])
+    limits = cfg.get("eval_limits") or {}
+    include_dir = Path(__file__).resolve().parents[2] / "lm_eval_tasks"
     batch_size = str(cfg.get("eval_batch_size", 1))
     max_memory = str(cfg.get("max_memory_per_gpu", "70GB"))
     for label, model, adapter in checkpoint_series(cfg):
@@ -46,8 +48,11 @@ def main() -> None:
             cmd = ["lm_eval", "--model", "hf", "--model_args", model_args,
                    "--tasks", task, "--batch_size", batch_size, "--output_path", str(target),
                    "--apply_chat_template"]
-            if args.limit is not None:
-                cmd += ["--limit", str(args.limit)]
+            if include_dir.is_dir():
+                cmd += ["--include_path", str(include_dir)]
+            limit = limits.get(task, args.limit)
+            if limit is not None:
+                cmd += ["--limit", str(limit)]
             if task == "humaneval":
                 if not args.allow_code_execution:
                     raise SystemExit("HumanEval executes generated code. Re-run inside Docker with --allow-code-execution.")

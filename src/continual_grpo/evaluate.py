@@ -28,24 +28,27 @@ def main() -> None:
     cfg = load_config(args.config)
     out = Path(cfg["output_dir"]) / "eval"
     out.mkdir(parents=True, exist_ok=True)
-    tasks = ",".join(cfg.get("eval_tasks", ["gsm8k", "humaneval", "bbq"]))
+    tasks = cfg.get("eval_tasks", ["gsm8k", "humaneval", "bbq"])
+    batch_size = str(cfg.get("eval_batch_size", 1))
     for label, model in checkpoint_series(cfg):
-        target = out / label
-        if (target / "results.json").exists():
-            continue
-        cmd = ["lm_eval", "--model", "hf", "--model_args", f"pretrained={model},trust_remote_code=True",
-               "--tasks", tasks, "--batch_size", "auto", "--output_path", str(target), "--log_samples",
-               "--apply_chat_template"]
-        if args.limit is not None:
-            cmd += ["--limit", str(args.limit)]
-        if "humaneval" in tasks:
-            if not args.allow_code_execution:
-                raise SystemExit("HumanEval executes generated code. Re-run inside Docker with --allow-code-execution.")
-            cmd += ["--confirm_run_unsafe_code"]
-        env = os.environ.copy()
-        if args.allow_code_execution:
-            env["HF_ALLOW_CODE_EVAL"] = "1"
-        subprocess.run(cmd, check=True, env=env)
+        for task in tasks:
+            target = out / label / task
+            if any(target.glob("**/results*.json")):
+                continue
+            print(f"\n=== {label}: {task} ===", flush=True)
+            cmd = ["lm_eval", "--model", "hf", "--model_args", f"pretrained={model},trust_remote_code=True",
+                   "--tasks", task, "--batch_size", batch_size, "--output_path", str(target), "--log_samples",
+                   "--apply_chat_template"]
+            if args.limit is not None:
+                cmd += ["--limit", str(args.limit)]
+            if task == "humaneval":
+                if not args.allow_code_execution:
+                    raise SystemExit("HumanEval executes generated code. Re-run inside Docker with --allow-code-execution.")
+                cmd += ["--confirm_run_unsafe_code"]
+            env = os.environ.copy()
+            if args.allow_code_execution:
+                env["HF_ALLOW_CODE_EVAL"] = "1"
+            subprocess.run(cmd, check=True, env=env)
 
 
 if __name__ == "__main__":

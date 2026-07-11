@@ -22,3 +22,4 @@ tasks:
     answer_field: answer
     max_samples: 8
 eval_tasks: [gsm8k, humaneval, bbq]
+eval_batch_size: 1

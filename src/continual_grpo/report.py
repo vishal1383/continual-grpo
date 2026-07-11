@@ -18,7 +18,7 @@ def main() -> None:
     rows = []
     for file in sorted((root / "eval").glob("**/results*.json")):
         payload = json.loads(file.read_text())
-        stage = file.parent.name
+        stage = file.relative_to(root / "eval").parts[0]
         for task, metrics in payload.get("results", {}).items():
             for metric, value in metrics.items():
                 if isinstance(value, (int, float)) and not metric.endswith("_stderr"):

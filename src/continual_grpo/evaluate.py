@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 from pathlib import Path
 
@@ -33,14 +34,18 @@ def main() -> None:
         if (target / "results.json").exists():
             continue
         cmd = ["lm_eval", "--model", "hf", "--model_args", f"pretrained={model},trust_remote_code=True",
-               "--tasks", tasks, "--batch_size", "auto", "--output_path", str(target), "--log_samples"]
+               "--tasks", tasks, "--batch_size", "auto", "--output_path", str(target), "--log_samples",
+               "--apply_chat_template"]
         if args.limit is not None:
             cmd += ["--limit", str(args.limit)]
         if "humaneval" in tasks:
             if not args.allow_code_execution:
                 raise SystemExit("HumanEval executes generated code. Re-run inside Docker with --allow-code-execution.")
             cmd += ["--confirm_run_unsafe_code"]
-        subprocess.run(cmd, check=True)
+        env = os.environ.copy()
+        if args.allow_code_execution:
+            env["HF_ALLOW_CODE_EVAL"] = "1"
+        subprocess.run(cmd, check=True, env=env)
 
 
 if __name__ == "__main__":

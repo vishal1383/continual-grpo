@@ -30,6 +30,7 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     tasks = cfg.get("eval_tasks", ["gsm8k", "humaneval", "bbq"])
     batch_size = str(cfg.get("eval_batch_size", 1))
+    max_memory = str(cfg.get("max_memory_per_gpu", "70GB"))
     for label, model in checkpoint_series(cfg):
         for task in tasks:
             target = out / label / task
@@ -37,7 +38,10 @@ def main() -> None:
                 continue
             print(f"\n=== {label}: {task} ===", flush=True)
             cmd = ["lm_eval", "--model", "hf",
-                   "--model_args", f"pretrained={model},trust_remote_code=True,dtype=float16",
+                   "--model_args", (
+                       f"pretrained={model},trust_remote_code=True,dtype=float16,"
+                       f"max_memory_per_gpu={max_memory}"
+                   ),
                    "--tasks", task, "--batch_size", batch_size, "--output_path", str(target),
                    "--apply_chat_template"]
             if args.limit is not None:

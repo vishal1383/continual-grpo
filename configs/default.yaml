@@ -23,3 +23,5 @@ tasks:
     max_samples: 256
 eval_tasks: [gsm8k, humaneval, bbq]
 eval_batch_size: 4
+max_memory_per_gpu: 70GB
+vllm_gpu_memory_utilization: 0.70

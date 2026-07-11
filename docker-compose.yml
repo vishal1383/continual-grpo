@@ -7,6 +7,7 @@ services:
       TORCH_DISABLE_NATIVE_JIT: "1"
     ipc: host
     shm_size: 32gb
+    mem_limit: 70g
     volumes:
       - .:/workspace
       - ./outputs:/workspace/outputs

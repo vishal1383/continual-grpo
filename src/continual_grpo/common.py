@@ -23,6 +23,15 @@ def model_list(cfg: dict[str, Any]) -> list[str]:
     return list(cfg.get("models") or [cfg["model"]])
 
 
+def method_list(cfg: dict[str, Any]) -> list[str]:
+    methods = list(cfg.get("methods") or [cfg.get("method", "grpo")])
+    allowed = {"grpo", "skill_ortho", "copsd", "combined"}
+    unknown = set(methods) - allowed
+    if unknown:
+        raise ValueError(f"Unknown methods {sorted(unknown)}; allowed: {sorted(allowed)}")
+    return methods
+
+
 def model_slug(name: str) -> str:
     return name.replace("/", "__")
 

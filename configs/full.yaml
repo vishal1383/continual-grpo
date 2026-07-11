@@ -1,8 +1,23 @@
+methods: [grpo, skill_ortho, copsd, combined]
 models:
   - Qwen/Qwen2.5-0.5B-Instruct
   - Qwen/Qwen2.5-3B-Instruct
   - Qwen/Qwen2.5-7B-Instruct
 output_dir: outputs/full
+protected_anchors:
+  - name: bbq
+    dataset: oskarvanderwal/bbq
+    subset: All
+    split: test
+    prompt_field: context
+    answer_field: question
+    max_samples: 64
+anchor_batch_size: 2
+protected_rank: 2
+spectral_target_rank: 1
+opsd_margin: 0.2
+opsd_negative_weight: 0.1
+opsd_temperature: 1.0
 seed: 42
 kl_beta: 0.04
 learning_rate: 5.0e-6

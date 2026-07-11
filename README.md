@@ -2,7 +2,7 @@
 
 A minimal, self-contained baseline for the NSF proposal's central measurement question: when GRPO improves a target capability, how much do protected capabilities and fairness behavior move? It trains a configurable sequence of tasks with standard GRPO and the ordinary frozen-reference KL penalty, then evaluates every stage on GSM8K, HumanEval, and BBQ.
 
-This repository deliberately excludes archived experiments, old distillation modes, generated outputs, and paper assets. It does **not** claim to implement the proposal's future Skill-Orthogonal/Muon or C-OPSD algorithms. Its task stream and stage-wise evaluation are the clean baseline framework those methods can extend.
+This repository deliberately excludes archived experiments, old distillation modes, generated outputs, and paper assets. It implements the proposal's method arms as configurable alternatives sharing one pipeline: standard GRPO (the comparison baseline), Skill-Orthogonal gradient projection (Aim 1), Contrastive On-Policy Self-Distillation (Aim 2), and their combination (Aim 3).
 
 ## What is measured
 
@@ -10,7 +10,7 @@ This repository deliberately excludes archived experiments, old distillation mod
 - Protected coding: HumanEval pass@1.
 - Protected fairness: BBQ accuracy/bias metrics exposed by `lm-eval`.
 - Continual drift: each metric's delta from the untouched base model after every training stage.
-- Training intervention: GRPO reward optimization with standard reference-policy KL (`kl_beta`).
+- Training intervention: one of four method arms per run (see "Method arms" below).
 
 HumanEval is one protected-capability benchmark in the same evaluation suite. Because its metric executes generated Python, the evaluator requires the explicit `--allow-code-execution` acknowledgement.
 
@@ -63,6 +63,15 @@ python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
 Results are written under the configured `output_dir` with one subdirectory per base model: stage adapters under `<model_slug>/stage_NN_<task>/`, raw evaluation JSON under `eval/<model_slug>/<stage>/<task>/`, plus the resolved config, `train_history.json`, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.
+
+## Method arms
+
+The `methods` list selects which arms train. Each arm trains its own adapters under `output_dir/<method>/<model_slug>/stage_NN_<task>/` and is evaluated separately under `eval/<method>/...`; the untouched base model is evaluated once per model under `eval/base/`.
+
+- `grpo` — standard GRPO with reference-policy KL (`kl_beta`); the comparison baseline.
+- `skill_ortho` — Aim 1. Before training, anchor batches from `protected_anchors` run through the model; the SVD of their mean gradient per parameter defines protected row/column axes (`protected_rank`, built in `anchors.py`/`skill_axes.py`). A callback (`ortho.py`) then transforms every matrix gradient immediately before each optimizer step: project off the protected axes, keep the top `spectral_target_rank` singular directions, and re-project (`spectral_update.py`). With a fresh LoRA adapter the protection acts through the `lora_B` side, since `lora_A` anchor gradients are zero at initialization.
+- `copsd` — Aim 2 (`opsd_trainer.py`). Replaces the scalar-reward objective: within each generation group, verified-correct completions are distilled toward the reference distribution on the tokens after the point where they diverge from a verified-wrong completion of the same prompt, plus a bounded margin (`opsd_margin`, weighted by `opsd_negative_weight`) that pushes correct sequence log-likelihood above wrong. Batches whose groups have no correct/wrong pair fall back to the GRPO loss so training never stalls; the `opsd_pairs` metric logs how often the contrastive signal was available.
+- `combined` — Aim 3: the C-OPSD objective with the skill-orthogonal projection applied to its updates.
 
 ## Model sizes and smoke evaluation
 

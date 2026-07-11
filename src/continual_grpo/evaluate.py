@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from .common import load_config, model_list, model_slug
+from .common import load_config, method_list, model_list, model_slug
 
 
 def checkpoint_series(cfg: dict) -> list[tuple[str, str, str | None]]:
@@ -13,11 +13,12 @@ def checkpoint_series(cfg: dict) -> list[tuple[str, str, str | None]]:
     points = []
     for model in model_list(cfg):
         slug = model_slug(model)
-        points.append((f"{slug}/stage_00_base", model, None))
-        for i, task in enumerate(cfg["tasks"], 1):
-            adapter = root / slug / f"stage_{i:02d}_{task['name']}" / "final_adapter"
-            if adapter.exists():
-                points.append((f"{slug}/stage_{i:02d}_{task['name']}", model, str(adapter)))
+        points.append((f"base/{slug}/stage_00_base", model, None))
+        for method in method_list(cfg):
+            for i, task in enumerate(cfg["tasks"], 1):
+                adapter = root / method / slug / f"stage_{i:02d}_{task['name']}" / "final_adapter"
+                if adapter.exists():
+                    points.append((f"{method}/{slug}/stage_{i:02d}_{task['name']}", model, str(adapter)))
     return points
 
 

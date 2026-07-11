@@ -55,7 +55,12 @@ def _reward_values(task_name: str, texts: list[str], gold: list[str]):
     return correctness_reward(texts, gold), format_reward(texts)
 
 
-def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict) -> float:
+def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
+                gradient_scale: float = 1.0) -> float:
+    if gradient_scale != 1.0:
+        for parameter in model.parameters():
+            if parameter.grad is not None:
+                parameter.grad.mul_(gradient_scale)
     if use_spectral:
         transform_gradients(model, axes, int(cfg.get("spectral_target_rank", 1)))
     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg.get("max_grad_norm", 1.0)))
@@ -223,7 +228,10 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                 pending = 0
         if pending:
             global_step += 1
-            grad_norm = _apply_step(model, optimizer, axes, use_spectral, cfg)
+            # Losses were divided by the configured accumulation count. Undo
+            # that extra division when the epoch ends with a partial window.
+            grad_norm = _apply_step(model, optimizer, axes, use_spectral, cfg,
+                                    accumulation / pending)
             log = _log_row(global_step, method, window, grad_norm)
             print(log, flush=True)
             _save_log(output / "train_metrics.jsonl", log)

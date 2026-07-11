@@ -1,14 +1,36 @@
+methods: [grpo, skill_ortho, copsd, combined]
 model: Qwen/Qwen2.5-7B-Instruct
 output_dir: outputs/default_7b_r32
+protected_anchors:
+  - name: mmlu
+    dataset: cais/mmlu
+    subset: all
+    split: validation
+    max_samples: 32
+  - name: bbq
+    dataset: oskarvanderwal/bbq
+    subset: All
+    split: test
+    max_samples: 32
+anchor_batch_size: 2
+protected_rank: 2
+spectral_target_rank: 1
+opsd_margin: 0.2
+opsd_negative_weight: 0.1
+opsd_temperature: 1.0
+opsd_weight: 0.1
 seed: 42
 kl_beta: 0.04
 learning_rate: 5.0e-6
 epochs: 1
 per_device_batch_size: 1
 gradient_accumulation_steps: 8
+prompt_batch_size: 1
 num_generations: 4
 max_prompt_length: 512
 max_completion_length: 256
+rollout_temperature: 0.8
+rollout_top_p: 0.95
 bf16: true
 max_grad_norm: 1.0
 gradient_checkpointing: true

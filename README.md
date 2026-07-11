@@ -28,7 +28,7 @@ HumanEval is one protected-capability benchmark in the same evaluation suite. Be
 ./run_all.sh smoke
 ```
 
-After the smoke test succeeds, run the complete GSM8K training and evaluation suite:
+After the smoke test succeeds, run the complete GSM8K/MATH training and retention-evaluation suite:
 
 ```bash
 ./run_all.sh full
@@ -51,7 +51,7 @@ python3 -m continual_grpo.bias_eval --config configs/default.yaml
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
-The default uses Qwen2.5-0.5B and 256 training examples so it fits broadly. Edit `configs/default.yaml` to select a larger model or full dataset when more compute is available.
+The default uses Qwen2.5-7B with bounded GSM8K/MATH subsets. The full config uses both complete training splits.
 
 ## Native installation and individual commands
 
@@ -65,7 +65,7 @@ python3 -m continual_grpo.bias_eval --config configs/default.yaml
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
-Results are written under the configured `output_dir` with one subdirectory per base model: stage adapters under `<model_slug>/stage_NN_<task>/`, raw evaluation JSON under `eval/<model_slug>/<stage>/<task>/`, plus the resolved config, `train_history.json`, `analysis.csv`, and `analysis.md`. Runs are resumable; completed training stages and evaluations are skipped.
+Results are written under `output_dir/<method>/<model_slug>/stage_NN_<task>/`, with raw utility evaluation under `eval/`, ten-bias results under `bias_eval/`, and aggregate CSV/Markdown reports. Runs are resumable; completed cells and evaluations are skipped.
 
 ## Method arms
 
@@ -80,12 +80,12 @@ All four paths are explicit in `custom_grpo.py`; training does not use TRL.
 
 ## Model sizes and smoke evaluation
 
-The supplied configs currently use Qwen2.5-7B-Instruct only. Each training run is itself the continual-learning event: one method arm trains on one task from the base model, and every protected benchmark (MMLU, BBQ, HumanEval, the ten-bias suite) is then checked for drift. Smoke runs one GSM8K and one MATH training item through all four methods. Full uses the complete GSM8K train split and the full 7.5k MATH-lighteval train split; MATH rewards verify the `#### <answer>` line against the gold `\boxed{}` content (numeric when both parse, normalized text otherwise).
+The supplied configs currently use Qwen2.5-7B-Instruct only. Here continual learning means capability-preserving post-training: each GSM8K or MATH cell starts from the same base model, improves one reasoning task, and is checked for drift on HumanEval, full MMLU, full BBQ, and the exact ten-bias suite. It does not mean sequential GSM8K→MATH training. Smoke runs one item from each reasoning task through all four methods. Full uses the complete GSM8K and MATH-lighteval training splits.
 
 The smoke config exercises full functionality on minimal data: it trains each model on one example, evaluates GSM8K and HumanEval with a per-task `eval_limits` of 1, and swaps BBQ for the local `bbq_smoke` task (defined in `lm_eval_tasks/` and loaded via `--include_path`). `bbq_smoke` keeps one document per BBQ (category, context) bucket — 22 documents — so every bias metric has data and none degenerates to NaN, which is what happens when a plain `--limit` takes rows from only the first category.
 
 ## Adding a continual task
 
-Append a task to the YAML `tasks` list with its Hugging Face dataset, split, prompt field, and answer field. The adapter from stage N initializes stage N+1. Add the corresponding `lm-eval` task name to `eval_tasks` to measure retention at every available checkpoint.
+Append a task to the YAML `tasks` list with its dataset and verifier fields. Each task is an independent post-training cell initialized from the same base model. Add the corresponding `lm-eval` task name to `eval_tasks` to measure retention.
 
 For publishable experiments, pin the container digest and Python lockfile, record GPU/driver versions, use full datasets, run multiple seeds, and inspect `lm_eval --tasks list` because task aliases can change across harness releases.

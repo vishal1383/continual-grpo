@@ -24,19 +24,20 @@ def group_advantages(rewards: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]
     return advantages, (std.squeeze(1) > 1e-8)
 
 
-def select_pairs(rewards, group_size: int) -> tuple[list[int], list[int]]:
-    """Pair every verified-correct completion with one incorrect completion
-    from the same prompt group; uniform groups contribute no pairs."""
+def select_pairs(rewards, group_size: int, sequence_scores=None) -> tuple[list[int], list[int]]:
+    """Pair each positive with the highest-likelihood negative in its group."""
     values = [float(v) for v in rewards]
+    scores = [float(v) for v in sequence_scores] if sequence_scores is not None else None
     positives, negatives = [], []
     for start in range(0, len(values), group_size):
         group = values[start:start + group_size]
         pos = [start + i for i, v in enumerate(group) if v >= 1.0]
         neg = [start + i for i, v in enumerate(group) if v < 1.0]
         if pos and neg:
+            chosen = max(neg, key=lambda index: scores[index]) if scores is not None else neg[0]
             for index in pos:
                 positives.append(index)
-                negatives.append(neg[0])
+                negatives.append(chosen)
     return positives, negatives
 
 
@@ -73,7 +74,9 @@ def opsd_loss_for_chunk(correct: torch.Tensor, group_size: int, completion_ids: 
                         margin: float, negative_weight: float,
                         temperature: float = 1.0) -> tuple[torch.Tensor, int]:
     """C-OPSD over the correct/incorrect pairs of one whole-group chunk."""
-    positives, negatives = select_pairs(correct.flatten(), group_size)
+    lengths = mask.sum(1).clamp_min(1)
+    sequence_scores = (policy_logps * mask).sum(1) / lengths
+    positives, negatives = select_pairs(correct.flatten(), group_size, sequence_scores.detach())
     if not positives:
         return torch.zeros((), device=policy_logps.device), 0
     pos = torch.tensor(positives, device=policy_logps.device)

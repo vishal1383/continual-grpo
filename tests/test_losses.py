@@ -11,6 +11,12 @@ def test_select_pairs_matches_within_groups():
     assert negatives == [1, 2]
 
 
+def test_select_pairs_uses_hardest_negative_when_scores_are_given():
+    positives, negatives = select_pairs([1.0, 0.0, 0.0], 3, [-2.0, -3.0, -1.0])
+    assert positives == [0]
+    assert negatives == [2]
+
+
 def test_select_pairs_skips_uniform_groups():
     assert select_pairs([0.0, 0.0], 2) == ([], [])
     assert select_pairs([1.0, 1.0], 2) == ([], [])

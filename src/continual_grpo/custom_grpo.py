@@ -56,34 +56,41 @@ def _reward_values(task_name: str, texts: list[str], gold: list[str]):
 
 
 def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
-                gradient_scale: float = 1.0) -> float:
+                gradient_scale: float = 1.0) -> tuple[float, dict[str, float]]:
     if gradient_scale != 1.0:
         for parameter in model.parameters():
             if parameter.grad is not None:
                 parameter.grad.mul_(gradient_scale)
+    spectral_stats = {}
     if use_spectral:
-        transform_gradients(model, axes, int(cfg.get("spectral_target_rank", 1)))
+        spectral_stats = transform_gradients(model, axes, int(cfg.get("spectral_target_rank", 1)))
     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg.get("max_grad_norm", 1.0)))
     optimizer.step()
     optimizer.zero_grad(set_to_none=True)
-    return float(grad_norm)
+    return float(grad_norm), spectral_stats
 
 
 def _new_window() -> dict:
     return {"grpo": 0.0, "kl": 0.0, "opsd": 0.0, "total": 0.0, "pairs": 0,
-            "correct": 0.0, "mixed": 0.0, "length": 0.0, "seqs": 0, "groups": 0}
+            "correct": 0.0, "mixed": 0.0, "paired_groups": 0.0, "abs_advantage": 0.0,
+            "length": 0.0, "seqs": 0, "groups": 0}
 
 
-def _log_row(step: int, method: str, window: dict, grad_norm: float) -> dict:
+def _log_row(step: int, method: str, window: dict, grad_norm: float,
+             spectral_stats: dict[str, float]) -> dict:
     seqs = max(1, window["seqs"])
     groups = max(1, window["groups"])
-    return {
+    row = {
         "step": step, "method": method, "total_loss": window["total"] / seqs,
         "grpo_policy_loss": window["grpo"] / seqs, "reference_kl_loss": window["kl"] / seqs,
         "opsd_loss": window["opsd"] / seqs, "opsd_pairs": window["pairs"],
         "correct_fraction": window["correct"] / seqs, "mixed_group_fraction": window["mixed"] / groups,
+        "paired_group_fraction": window["paired_groups"] / groups,
+        "mean_abs_advantage": window["abs_advantage"] / seqs,
         "grad_norm": grad_norm, "completion_length": window["length"] / seqs,
     }
+    row.update(spectral_stats)
+    return row
 
 
 def load_policy(model_name: str, cfg: dict):
@@ -119,10 +126,16 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     random.seed(int(cfg.get("seed", 42)))
     model, tokenizer = load_policy(model_name, cfg)
     rows = prepare_task(task_spec, int(cfg.get("seed", 42)))
-    optimizer = torch.optim.AdamW(
-        (p for p in model.parameters() if p.requires_grad),
-        lr=float(cfg.get("learning_rate", 2e-6)), weight_decay=float(cfg.get("weight_decay", 0.01)),
-    )
+    parameters = [p for p in model.parameters() if p.requires_grad]
+    optimizer_name = cfg.get("optimizer", "sgd")
+    if optimizer_name == "sgd":
+        optimizer = torch.optim.SGD(parameters, lr=float(cfg.get("learning_rate", 2e-6)),
+                                    momentum=float(cfg.get("momentum", 0.9)), weight_decay=0.0)
+    elif optimizer_name == "adamw":
+        optimizer = torch.optim.AdamW(parameters, lr=float(cfg.get("learning_rate", 2e-6)),
+                                      weight_decay=float(cfg.get("weight_decay", 0.0)))
+    else:
+        raise ValueError("optimizer must be 'sgd' or 'adamw'")
     use_opsd = method in {"copsd", "combined"}
     use_spectral = method in {"skill_ortho", "combined"}
     axes = build_protected_axes(model, tokenizer, cfg) if use_spectral else {}
@@ -130,7 +143,9 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     prompt_batch = int(cfg.get("prompt_batch_size", 1))
     per_device = int(cfg.get("per_device_batch_size", k))
     accumulation = int(cfg.get("gradient_accumulation_steps", 1))
-    groups_per_chunk = max(1, per_device // k)
+    if per_device < k or per_device % k:
+        raise ValueError("per_device_batch_size must be a multiple of num_generations")
+    groups_per_chunk = per_device // k
     temperature = float(cfg.get("rollout_temperature", 0.8))
     clip_eps = float(cfg.get("grpo_clip", 0.2))
     beta = float(cfg.get("kl_beta", 0.04))
@@ -173,6 +188,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
             formatting = torch.tensor(format_values, device=model.device).view(-1, k)
             rewards = correct + formatting
             advantages, mixed = group_advantages(rewards)
+            paired_groups = (correct.ge(1.0).any(1) & correct.lt(1.0).any(1))
             mask_all = completion_mask.float()
             lengths_all = mask_all.sum(1).clamp_min(1)
             n_groups = rewards.shape[0]
@@ -215,13 +231,15 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                 del logits, completion_logits, reference_logits, policy_logps
             window["correct"] += float(correct.sum())
             window["mixed"] += float(mixed.float().sum())
+            window["paired_groups"] += float(paired_groups.float().sum())
+            window["abs_advantage"] += float(advantages.abs().sum())
             window["length"] += float(lengths_all.sum())
             window["groups"] += n_groups
             pending += 1
             if pending == accumulation:
                 global_step += 1
-                grad_norm = _apply_step(model, optimizer, axes, use_spectral, cfg)
-                log = _log_row(global_step, method, window, grad_norm)
+                grad_norm, spectral_stats = _apply_step(model, optimizer, axes, use_spectral, cfg)
+                log = _log_row(global_step, method, window, grad_norm, spectral_stats)
                 print(log, flush=True)
                 _save_log(output / "train_metrics.jsonl", log)
                 window = _new_window()
@@ -230,9 +248,9 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
             global_step += 1
             # Losses were divided by the configured accumulation count. Undo
             # that extra division when the epoch ends with a partial window.
-            grad_norm = _apply_step(model, optimizer, axes, use_spectral, cfg,
-                                    accumulation / pending)
-            log = _log_row(global_step, method, window, grad_norm)
+            grad_norm, spectral_stats = _apply_step(model, optimizer, axes, use_spectral, cfg,
+                                                    accumulation / pending)
+            log = _log_row(global_step, method, window, grad_norm, spectral_stats)
             print(log, flush=True)
             _save_log(output / "train_metrics.jsonl", log)
     final.mkdir(parents=True, exist_ok=True)

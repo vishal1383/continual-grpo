@@ -22,7 +22,10 @@ opsd_temperature: 1.0
 opsd_weight: 0.1
 seed: 42
 kl_beta: 0.04
-learning_rate: 5.0e-6
+learning_rate: 1.0e-4
+weight_decay: 0.0
+optimizer: sgd
+momentum: 0.9
 epochs: 1
 per_device_batch_size: 2
 gradient_accumulation_steps: 1
@@ -31,7 +34,7 @@ num_generations: 2
 max_prompt_length: 256
 max_completion_length: 64
 rollout_temperature: 0.8
-rollout_top_p: 0.95
+rollout_top_p: 1.0
 bf16: true
 max_grad_norm: 1.0
 gradient_checkpointing: true

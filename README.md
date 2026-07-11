@@ -78,6 +78,8 @@ The `methods` list selects which arms train. Each arm trains its own adapters un
 
 All four paths are explicit in `custom_grpo.py`; training does not use TRL.
 
+All arms use the same SGD+momentum optimizer with zero weight decay. This is intentional: decoupled weight decay and Adam's elementwise preconditioning can move an already projected gradient back into protected directions. Spectral arms additionally log retained gradient energy and protected overlap before/after projection. Full GSM8K uses eight generations per prompt and top-p 1.0 so the scored policy matches the sampling distribution.
+
 ## Model sizes and smoke evaluation
 
 The supplied configs currently use Qwen2.5-7B-Instruct only. Here continual learning means capability-preserving post-training: each GSM8K or MATH cell starts from the same base model, improves one reasoning task, and is checked for drift on HumanEval, full MMLU, full BBQ, and the exact ten-bias suite. It does not mean sequential GSM8K→MATH training. Smoke runs one item from each reasoning task through all four methods. Full uses the complete GSM8K and MATH-lighteval training splits.

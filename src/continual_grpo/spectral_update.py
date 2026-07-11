@@ -57,10 +57,29 @@ def isolate_matrix_gradient(
 
 
 @torch.no_grad()
-def transform_gradients(model, axes_by_parameter: dict[str, ProtectedAxes], target_rank: int = 1) -> None:
-    """Transform gradients in place immediately before optimizer.step()."""
+def transform_gradients(model, axes_by_parameter: dict[str, ProtectedAxes], target_rank: int = 1) -> dict[str, float]:
+    """Transform gradients and return retained-energy/protected-overlap diagnostics."""
+    before_energy = 0.0
+    after_energy = 0.0
+    protected_before = 0.0
+    protected_after = 0.0
     for name, parameter in model.named_parameters():
         if parameter.grad is not None:
-            parameter.grad.copy_(isolate_matrix_gradient(
-                parameter.grad, axes_by_parameter.get(name), target_rank
-            ))
+            gradient = parameter.grad
+            before_energy += float(gradient.float().square().sum())
+            axes = axes_by_parameter.get(name)
+            if gradient.ndim == 2 and axes is not None:
+                projected = _remove_right(_remove_left(gradient.float(), axes.left), axes.right)
+                protected_before += float((gradient.float() - projected).square().sum())
+            transformed = isolate_matrix_gradient(gradient, axes, target_rank)
+            after_energy += float(transformed.float().square().sum())
+            if transformed.ndim == 2 and axes is not None:
+                projected = _remove_right(_remove_left(transformed.float(), axes.left), axes.right)
+                protected_after += float((transformed.float() - projected).square().sum())
+            gradient.copy_(transformed)
+    denominator = max(before_energy, 1e-30)
+    return {
+        "spectral_retained_energy": after_energy / denominator,
+        "protected_overlap_before": protected_before / denominator,
+        "protected_overlap_after": protected_after / max(after_energy, 1e-30),
+    }

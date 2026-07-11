@@ -13,6 +13,8 @@ combined    = GRPO + KL + OPSD, then the same spectral transform
 
 Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl` (one row per optimizer step).
 
+All four arms use identical SGD+momentum with zero weight decay. Spectral arms additionally log `spectral_retained_energy`, `protected_overlap_before`, and `protected_overlap_after`. Signal diagnostics include `mean_abs_advantage`, `mixed_group_fraction`, and the correctness-only `paired_group_fraction` used by C-OPSD.
+
 Training tasks are GSM8K and MATH (MATH-lighteval); each is trained as its own independent cell from the same base model. Here continual learning means retaining existing capabilities and behavior during reasoning post-training, not sequential GSM8K→MATH adaptation. HumanEval, full MMLU, full BBQ, and the ten-bias suite are held-out retention axes. Batching config keys are all honored: `prompt_batch_size` prompts roll out together with `num_generations` completions each, `per_device_batch_size` bounds scoring/backpropagation chunks, and `gradient_accumulation_steps` controls optimizer cadence.
 
 ## Prerequisites

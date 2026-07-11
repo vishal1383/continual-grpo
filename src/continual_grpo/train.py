@@ -50,10 +50,22 @@ def train_arm(cfg: dict, root: Path, method: str, base_model: str, resume: bool,
             max_grad_norm=float(cfg.get("max_grad_norm", 1.0)),
             logging_steps=1, save_strategy="epoch", report_to="none",
         )
+        finetune_mode = cfg.get("finetune_mode", "lora")
+        if finetune_mode not in {"lora", "full"}:
+            raise ValueError("finetune_mode must be 'lora' or 'full'")
         peft = None
-        if cfg.get("use_lora", True):
-            peft = LoraConfig(r=int(cfg.get("lora_r", 16)), lora_alpha=int(cfg.get("lora_r", 16)),
-                              target_modules="all-linear", task_type="CAUSAL_LM")
+        if finetune_mode == "lora":
+            rank = int(cfg.get("lora_r", 32))
+            peft = LoraConfig(
+                r=rank,
+                lora_alpha=int(cfg.get("lora_alpha", rank)),
+                lora_dropout=float(cfg.get("lora_dropout", 0.0)),
+                target_modules=cfg.get("lora_target_modules", [
+                    "q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj",
+                ]),
+                task_type="CAUSAL_LM",
+            )
         trainer = OPSDTrainer(
             model=model, reward_funcs=[RecordingReward(correctness_reward), format_reward],
             args=args, train_dataset=train_data, peft_config=peft,

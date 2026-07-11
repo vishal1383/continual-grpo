@@ -28,8 +28,11 @@ max_completion_length: 64
 bf16: true
 max_grad_norm: 1.0
 gradient_checkpointing: true
-use_lora: true
-lora_r: 8
+finetune_mode: lora
+lora_r: 16
+lora_alpha: 16
+lora_dropout: 0.0
+lora_target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
 tasks:
   - name: gsm8k
     dataset: openai/gsm8k

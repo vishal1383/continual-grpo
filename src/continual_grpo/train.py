@@ -68,6 +68,7 @@ def run(config_path: str, resume: bool = False) -> None:
             max_completion_length=int(cfg.get("max_completion_length", 384)),
             bf16=bool(cfg.get("bf16", True)), fp16=not bool(cfg.get("bf16", True)),
             gradient_checkpointing=bool(cfg.get("gradient_checkpointing", True)),
+            gradient_checkpointing_kwargs={"use_reentrant": False},
             logging_steps=1, save_strategy="epoch", report_to="none",
         )
         peft = None
@@ -76,6 +77,8 @@ def run(config_path: str, resume: bool = False) -> None:
                               target_modules="all-linear", task_type="CAUSAL_LM")
         trainer = GRPOTrainer(model=model, reward_funcs=[correctness_reward, format_reward],
                               args=args, train_dataset=train_data, peft_config=peft)
+        if cfg.get("gradient_checkpointing", True) and hasattr(trainer.model, "enable_input_require_grads"):
+            trainer.model.enable_input_require_grads()
         has_checkpoint = any(stage.glob("checkpoint-*"))
         result = trainer.train(resume_from_checkpoint=True if resume and has_checkpoint else None)
         trainer.save_model(str(final_adapter))

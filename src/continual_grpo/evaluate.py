@@ -8,13 +8,13 @@ from pathlib import Path
 from .common import load_config
 
 
-def checkpoint_series(cfg: dict) -> list[tuple[str, str]]:
+def checkpoint_series(cfg: dict) -> list[tuple[str, str, str | None]]:
     root = Path(cfg["output_dir"])
-    points = [("stage_00_base", cfg["model"])]
+    points = [("stage_00_base", cfg["model"], None)]
     for i, task in enumerate(cfg["tasks"], 1):
         adapter = root / f"stage_{i:02d}_{task['name']}" / "final_adapter"
         if adapter.exists():
-            points.append((f"stage_{i:02d}_{task['name']}", str(adapter)))
+            points.append((f"stage_{i:02d}_{task['name']}", cfg["model"], str(adapter)))
     return points
 
 
@@ -31,17 +31,19 @@ def main() -> None:
     tasks = cfg.get("eval_tasks", ["gsm8k", "humaneval", "bbq"])
     batch_size = str(cfg.get("eval_batch_size", 1))
     max_memory = str(cfg.get("max_memory_per_gpu", "70GB"))
-    for label, model in checkpoint_series(cfg):
+    for label, model, adapter in checkpoint_series(cfg):
         for task in tasks:
             target = out / label / task
             if any(target.glob("**/results*.json")):
                 continue
             print(f"\n=== {label}: {task} ===", flush=True)
-            cmd = ["lm_eval", "--model", "hf",
-                   "--model_args", (
-                       f"pretrained={model},trust_remote_code=True,dtype=float16,"
-                       f"max_memory_per_gpu={max_memory}"
-                   ),
+            model_args = (
+                f"pretrained={model},trust_remote_code=True,dtype=float16,"
+                f"max_memory_per_gpu={max_memory}"
+            )
+            if adapter:
+                model_args += f",peft={adapter}"
+            cmd = ["lm_eval", "--model", "hf", "--model_args", model_args,
                    "--tasks", task, "--batch_size", batch_size, "--output_path", str(target),
                    "--apply_chat_template"]
             if args.limit is not None:

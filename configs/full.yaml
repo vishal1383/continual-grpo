@@ -1,9 +1,7 @@
 methods: [grpo, skill_ortho, copsd, combined]
 models:
-  - Qwen/Qwen2.5-0.5B-Instruct
-  - Qwen/Qwen2.5-3B-Instruct
   - Qwen/Qwen2.5-7B-Instruct
-output_dir: outputs/full
+output_dir: outputs/full_7b_r32
 protected_anchors:
   - name: bbq
     dataset: oskarvanderwal/bbq

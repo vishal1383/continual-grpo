@@ -75,7 +75,7 @@ Only `docker compose down` removes the Compose container. It is intentionally no
 
 ## Fine-tuning mode
 
-The supplied smoke and full configurations use LoRA over attention Q/K/V/O and FFN gate/up/down projections. The full run uses rank 32; smoke uses rank 16.
+The supplied smoke and full configurations currently run only Qwen2.5-7B-Instruct. They use LoRA over attention Q/K/V/O and FFN gate/up/down projections. The full run uses rank 32; smoke uses rank 16.
 
 Full-parameter fine-tuning is available for larger systems by setting:
 

@@ -1,5 +1,5 @@
-model: Qwen/Qwen2.5-0.5B-Instruct
-output_dir: outputs/default
+model: Qwen/Qwen2.5-7B-Instruct
+output_dir: outputs/default_7b_r32
 seed: 42
 kl_beta: 0.04
 learning_rate: 5.0e-6

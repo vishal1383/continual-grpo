@@ -11,7 +11,7 @@ per_device_batch_size: 4
 gradient_accumulation_steps: 4
 num_generations: 4
 max_prompt_length: 512
-max_completion_length: 256
+max_completion_length: 512
 bf16: true
 max_grad_norm: 1.0
 gradient_checkpointing: true

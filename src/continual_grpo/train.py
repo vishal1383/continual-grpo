@@ -12,7 +12,7 @@ from trl import GRPOConfig, GRPOTrainer
 from .common import dump_json, load_config, model_list, model_slug
 
 
-SYSTEM = "Solve carefully. Put the final answer after ####."
+SYSTEM = "Solve step by step, briefly. End with the final answer on its own line: #### <number>"
 
 
 def _number(text: str) -> Decimal | None:

@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument("--config", required=True)
     parser.add_argument("--resume", action="store_true", help="Completed cells are always reused")
     parser.add_argument("--method", choices=["grpo", "skill_ortho", "copsd", "combined"])
-    parser.add_argument("--task", choices=["gsm8k", "humaneval"])
+    parser.add_argument("--task", choices=["gsm8k", "math", "humaneval"])
     args = parser.parse_args()
     run(args.config, args.method, args.task)
 

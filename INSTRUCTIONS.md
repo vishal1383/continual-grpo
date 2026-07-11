@@ -11,7 +11,9 @@ copsd       = the same GRPO + KL plus additive contrastive OPSD
 combined    = GRPO + KL + OPSD, then the same spectral transform
 ```
 
-Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl`.
+Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl` (one row per optimizer step).
+
+Training tasks are GSM8K and MATH (MATH-lighteval); each is trained as its own independent cell from the base model — the GRPO run itself is the continual-learning event, and drift is measured on the protected benchmarks afterward. HumanEval is evaluation-only. Batching config keys are all honored: `prompt_batch_size` prompts roll out together with `num_generations` completions each, `per_device_batch_size` bounds how many completions are scored/backpropagated per forward chunk (whole prompt groups, so C-OPSD pairing is never split), and `gradient_accumulation_steps` prompt batches accumulate into one optimizer step. All log-probabilities are scored at the rollout temperature so the trained distribution matches the sampling policy.
 
 ## Prerequisites
 

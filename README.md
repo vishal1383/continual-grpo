@@ -6,8 +6,8 @@ This repository deliberately excludes archived experiments, old distillation mod
 
 ## What is measured
 
-- Target reasoning: GSM8K exact-match via `lm-eval`.
-- Protected coding: HumanEval pass@1.
+- Target reasoning: GSM8K and MATH (MATH-lighteval train split; `hendrycks_math` via `lm-eval`).
+- Protected coding: HumanEval pass@1 (evaluation only; HumanEval is never trained on).
 - Protected knowledge: full MMLU (all 57 subtasks) via `lm-eval`.
 - Protected fairness: BBQ accuracy/bias metrics exposed by `lm-eval`, plus the exact original ten-benchmark bias suite (CrowS-Pairs, StereoSet inter/intrasentence, ToxiGen, WinoBias, WinoGender gap, P-AT, UnStereoEval USE-10, DiscrimEval, UCCB) via `continual_grpo.bias_eval`.
 - Continual drift: each metric's delta from the untouched base model after every training stage — absolute and relative, with sample counts and per-group bias details.
@@ -80,7 +80,7 @@ All four paths are explicit in `custom_grpo.py`; training does not use TRL.
 
 ## Model sizes and smoke evaluation
 
-The supplied configs currently use Qwen2.5-7B-Instruct only. Smoke runs one GSM8K and one HumanEval training item through all four methods. Full uses the complete GSM8K split and the 100-problem HumanEval training partition, with 64 HumanEval problems held out.
+The supplied configs currently use Qwen2.5-7B-Instruct only. Each training run is itself the continual-learning event: one method arm trains on one task from the base model, and every protected benchmark (MMLU, BBQ, HumanEval, the ten-bias suite) is then checked for drift. Smoke runs one GSM8K and one MATH training item through all four methods. Full uses the complete GSM8K train split and the full 7.5k MATH-lighteval train split; MATH rewards verify the `#### <answer>` line against the gold `\boxed{}` content (numeric when both parse, normalized text otherwise).
 
 The smoke config exercises full functionality on minimal data: it trains each model on one example, evaluates GSM8K and HumanEval with a per-task `eval_limits` of 1, and swaps BBQ for the local `bbq_smoke` task (defined in `lm_eval_tasks/` and loaded via `--include_path`). `bbq_smoke` keeps one document per BBQ (category, context) bucket — 22 documents — so every bias metric has data and none degenerates to NaN, which is what happens when a plain `--limit` takes rows from only the first category.
 

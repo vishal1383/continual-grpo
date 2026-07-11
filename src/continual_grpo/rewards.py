@@ -14,6 +14,7 @@ from datasets import Dataset
 
 
 SYSTEM = "Solve step by step, briefly. End with the final answer on its own line: #### <number>"
+SYSTEM_MATH = "Solve step by step, briefly. End with the final answer on its own line: #### <answer>"
 
 
 def _number(text: str) -> Decimal | None:
@@ -39,6 +40,61 @@ def correctness_reward(completions, answer, **_):
 def format_reward(completions, **_):
     texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
     return [0.1 if re.search(r"####\s*\S+", text) else 0.0 for text in texts]
+
+
+def boxed_answer(text: str) -> str | None:
+    """Return the content of the last \\boxed{...}, honoring nested braces."""
+    index = str(text).rfind("\\boxed")
+    if index == -1:
+        return None
+    open_brace = str(text).find("{", index)
+    if open_brace == -1:
+        return None
+    depth = 0
+    for position in range(open_brace, len(text)):
+        if text[position] == "{":
+            depth += 1
+        elif text[position] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace + 1:position]
+    return None
+
+
+def _normalize_math(text: str) -> str:
+    """Canonicalize a MATH answer: drop spacing/latex decoration, flatten \\frac."""
+    s = str(text).strip().strip("$").strip()
+    for token in ("\\left", "\\right", "\\,", "\\!", "\\;", " "):
+        s = s.replace(token, "")
+    while True:
+        replaced = re.sub(r"\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}", r"\1/\2", s)
+        if replaced == s:
+            break
+        s = replaced
+    return s.replace("{", "").replace("}", "").rstrip(".")
+
+
+def _math_equal(pred: str, gold: str) -> bool:
+    p, g = _normalize_math(pred), _normalize_math(gold)
+    if not p or not g:
+        return False
+    try:
+        return Decimal(p.replace(",", "")) == Decimal(g.replace(",", ""))
+    except InvalidOperation:
+        return p == g
+
+
+def math_correctness_reward(completions, answer, **_):
+    """MATH verifier: the #### answer (or last \\boxed in the completion) must
+    match the gold \\boxed content, numerically when both parse, else as
+    normalized text."""
+    texts = [c[0]["content"] if isinstance(c, list) else str(c) for c in completions]
+    out = []
+    for text, gold in zip(texts, answer):
+        marked = re.findall(r"####\s*([^\n]+)", text)
+        pred = marked[-1].strip() if marked else boxed_answer(text)
+        out.append(1.0 if pred is not None and _math_equal(pred, str(gold)) else 0.0)
+    return out
 
 
 def _extract_code(text: str) -> str:
@@ -73,6 +129,22 @@ def code_rewards(completions: list[str], answers: list[str]) -> list[float]:
 
 
 def prepare_task(spec: dict, seed: int):
+    if spec.get("name") == "math":
+        ds = load_dataset(spec["dataset"], spec.get("subset"), split=spec.get("split", "train"))
+        limit = int(spec.get("max_samples", 0))
+        if limit:
+            ds = ds.shuffle(seed=seed).select(range(min(limit, len(ds))))
+        rows = []
+        for row in ds:
+            gold = boxed_answer(str(row.get("solution", "")))
+            if gold is None:
+                continue
+            rows.append({
+                "prompt": [{"role": "system", "content": SYSTEM_MATH},
+                           {"role": "user", "content": row["problem"]}],
+                "answer": gold,
+            })
+        return Dataset.from_list(rows)
     if spec.get("name") == "humaneval":
         ds = load_dataset("openai/openai_humaneval", split="test").shuffle(seed=seed)
         held_out = int(spec.get("held_out", 64))

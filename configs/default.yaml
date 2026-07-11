@@ -25,7 +25,12 @@ tasks:
     prompt_field: question
     answer_field: answer
     max_samples: 256
-eval_tasks: [gsm8k, humaneval, bbq, mmlu]
+  - name: math
+    dataset: DigitalLearningGmbH/MATH-lighteval
+    subset: default
+    split: train
+    max_samples: 256
+eval_tasks: [gsm8k, hendrycks_math, humaneval, bbq, mmlu]
 bias_eval:
   n_eval: 0
   eval_batch: 8

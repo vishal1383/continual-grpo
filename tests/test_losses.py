@@ -1,7 +1,8 @@
 import torch
 
 from continual_grpo.contrastive_opsd import contrastive_opsd_loss
-from continual_grpo.opsd_trainer import divergence_masks, select_pairs
+from continual_grpo.losses import (clipped_grpo_loss, divergence_masks,
+                                   group_advantages, select_pairs)
 
 
 def test_select_pairs_matches_within_groups():
@@ -21,6 +22,23 @@ def test_divergence_masks_start_at_first_difference():
     pos_mask = torch.tensor([[1, 1, 1, 0]])
     out = divergence_masks(pos_ids, neg_ids, pos_mask)
     assert out.tolist() == [[0.0, 0.0, 1.0, 0.0]]
+
+
+def test_group_advantages_zero_for_uniform_groups():
+    advantages, mixed = group_advantages(torch.tensor([[1.0, 1.0], [1.0, 0.0]]))
+    assert advantages[0].abs().max() == 0.0
+    assert advantages[1].sum().abs() < 1e-6
+    assert mixed.tolist() == [False, True]
+
+
+def test_clipped_grpo_loss_zero_at_on_policy_point():
+    policy = torch.tensor([[-1.0, -2.0], [-1.5, -0.5]])
+    adv = torch.tensor([[1.0], [-1.0]])
+    mask = torch.ones(2, 2)
+    lengths = mask.sum(1)
+    loss = clipped_grpo_loss(policy, policy.detach(), adv, mask, lengths, 0.2)
+    assert float(loss.detach()) == 0.0
+    assert torch.isfinite(loss)
 
 
 def test_contrastive_opsd_loss_is_finite():

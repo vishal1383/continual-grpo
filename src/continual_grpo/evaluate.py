@@ -36,8 +36,9 @@ def main() -> None:
             if any(target.glob("**/results*.json")):
                 continue
             print(f"\n=== {label}: {task} ===", flush=True)
-            cmd = ["lm_eval", "--model", "hf", "--model_args", f"pretrained={model},trust_remote_code=True",
-                   "--tasks", task, "--batch_size", batch_size, "--output_path", str(target), "--log_samples",
+            cmd = ["lm_eval", "--model", "hf",
+                   "--model_args", f"pretrained={model},trust_remote_code=True,dtype=float16",
+                   "--tasks", task, "--batch_size", batch_size, "--output_path", str(target),
                    "--apply_chat_template"]
             if args.limit is not None:
                 cmd += ["--limit", str(args.limit)]

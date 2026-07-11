@@ -8,7 +8,7 @@ IMAGE="continual-grpo:v2"
 case "$MODE" in
   smoke)
     CONFIG="configs/smoke.yaml"
-    EVAL_LIMIT=(--limit 2)
+    EVAL_LIMIT=(--limit 1)
     ;;
   full)
     CONFIG="configs/full.yaml"

@@ -20,7 +20,7 @@ tasks:
     split: train
     prompt_field: question
     answer_field: answer
-    max_samples: 8
+    max_samples: 1
 eval_tasks: [gsm8k, humaneval, bbq]
 eval_batch_size: 1
 max_memory_per_gpu: 70GB

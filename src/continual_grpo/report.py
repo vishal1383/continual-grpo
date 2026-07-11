@@ -30,6 +30,7 @@ def main() -> None:
     base = frame[frame.method == "base"][["model", "task", "metric", "value"]].rename(columns={"value": "base"})
     frame = frame.merge(base, on=["model", "task", "metric"], how="left")
     frame["delta_from_base"] = frame.value - frame.base
+    frame["rel_delta_from_base"] = frame.delta_from_base / frame.base.abs().where(frame.base != 0)
     frame.to_csv(root / "analysis.csv", index=False)
     summary = frame.pivot_table(index=["model", "task", "metric"], columns=["method", "stage"], values="value")
     (root / "analysis.md").write_text("# Capability and drift report\n\n" + summary.to_markdown() + "\n")

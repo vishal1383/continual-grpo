@@ -24,6 +24,7 @@ fi
 docker compose up -d --no-build experiment
 docker compose exec experiment python3 -m continual_grpo.train --config "$CONFIG" --resume
 docker compose exec experiment python3 -m continual_grpo.evaluate --config "$CONFIG" --allow-code-execution
+docker compose exec experiment python3 -m continual_grpo.bias_eval --config "$CONFIG"
 docker compose exec experiment python3 -m continual_grpo.report --config "$CONFIG"
 
 echo "Run complete. Container is still running."

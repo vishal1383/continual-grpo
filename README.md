@@ -8,8 +8,9 @@ This repository deliberately excludes archived experiments, old distillation mod
 
 - Target reasoning: GSM8K exact-match via `lm-eval`.
 - Protected coding: HumanEval pass@1.
-- Protected fairness: BBQ accuracy/bias metrics exposed by `lm-eval`.
-- Continual drift: each metric's delta from the untouched base model after every training stage.
+- Protected knowledge: full MMLU (all 57 subtasks) via `lm-eval`.
+- Protected fairness: BBQ accuracy/bias metrics exposed by `lm-eval`, plus the exact original ten-benchmark bias suite (CrowS-Pairs, StereoSet inter/intrasentence, ToxiGen, WinoBias, WinoGender gap, P-AT, UnStereoEval USE-10, DiscrimEval, UCCB) via `continual_grpo.bias_eval`.
+- Continual drift: each metric's delta from the untouched base model after every training stage — absolute and relative, with sample counts and per-group bias details.
 - Training intervention: one of four method arms per run (see "Method arms" below).
 
 HumanEval is one protected-capability benchmark in the same evaluation suite. Because its metric executes generated Python, the evaluator requires the explicit `--allow-code-execution` acknowledgement.
@@ -46,6 +47,7 @@ Inside `/workspace`, the phases can also be run separately:
 ```bash
 python3 -m continual_grpo.train --config configs/default.yaml --resume
 python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.bias_eval --config configs/default.yaml
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
 
@@ -59,6 +61,7 @@ source .venv/bin/activate
 pip install -e .
 python3 -m continual_grpo.train --config configs/default.yaml --resume
 python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.bias_eval --config configs/default.yaml
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
 

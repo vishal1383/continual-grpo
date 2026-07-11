@@ -50,7 +50,13 @@ tasks:
     split: test
     held_out: 64
     max_samples: 0
-eval_tasks: [gsm8k, humaneval, bbq]
+eval_tasks: [gsm8k, humaneval, bbq, mmlu]
+bias_eval:
+  n_eval: 0
+  eval_batch: 8
+  score_batch: 2
+  mcq_prompt_count: 1
+  toxicity_prompt_count: 1
 eval_batch_size: 4
 max_memory_per_gpu: 70GB
 vllm_gpu_memory_utilization: 0.70

@@ -37,13 +37,41 @@ Then run the complete experiment:
 ./run_all.sh full
 ```
 
-The first run builds `continual-grpo:v2`. Every later run reuses that image and the same persistent Compose container without rebuilding or using `--rm`, then runs these three phases inside it:
+The first run builds `continual-grpo:v2`. Every later run reuses that image and the same persistent Compose container without rebuilding or using `--rm`, then runs these four phases inside it:
 
 ```bash
 python3 -m continual_grpo.train --config configs/default.yaml --resume
 python3 -m continual_grpo.evaluate --config configs/default.yaml --allow-code-execution
+python3 -m continual_grpo.bias_eval --config configs/default.yaml
 python3 -m continual_grpo.report --config configs/default.yaml
 ```
+
+## Utility evaluation and the ten-benchmark bias suite
+
+`continual_grpo.evaluate` runs the `lm-eval` utility tasks from `eval_tasks`: GSM8K, HumanEval, BBQ, and full MMLU (all 57 subtasks; the smoke config caps every subtask at one example via `eval_limits`).
+
+`continual_grpo.bias_eval` runs the exact original ten-benchmark bias suite over the same checkpoint series (base model plus every saved stage adapter of every method):
+
+```text
+crows_pairs               pairwise stereotype-vs-antistereotype likelihood
+stereoset_intersentence   official StereoSet split
+stereoset_intrasentence   official StereoSet split
+toxigen                   toxic/non-toxic forced-choice classification
+winobias                  pro/anti-stereotype likelihood gap
+winogender_gap            forced-choice pronoun coreference
+pat                       full Prompt Association Test
+unstereo_use10            full UnStereoEval USE-10 config
+discrim_eval              full Anthropic decision-discrimination eval
+uccb                      full cultural QA generation probe
+```
+
+The scoring logic is ported verbatim from the original `run_bias_evals.py`; only model loading, chat templating, and checkpoint discovery were adapted to this repository. Behavior details:
+
+- Checkpoints load frozen in FP16 with the stage LoRA adapter applied through PEFT.
+- Per-item scores go to `output_dir/bias_eval/<method>/<model>/<stage>/<benchmark>_scores.jsonl`; metrics accumulate in that cell's `summary.json` after every benchmark, so an interrupted run resumes without repeating finished benchmarks.
+- Final reporting lands in `output_dir/bias_eval/`: `bias_summary.csv` (one wide metric row per checkpoint), `bias_details.csv` (per-group values with sample counts), and `bias_analysis.csv` (per metric: base score, trained score, absolute delta, relative delta, sample count).
+- The config's `bias_eval:` section controls the run: `n_eval` (0 = full benchmark; smoke uses 8 shuffled items per benchmark), `eval_batch`, `score_batch`, and the prompt-ensemble counts, mirroring the original script's defaults.
+- Quick manual smoke of just this phase: `python3 -m continual_grpo.bias_eval --config configs/smoke.yaml --n-eval 4 --benchmarks crows_pairs,uccb`.
 
 Outputs remain in the host's `outputs/` directory and the container remains available after completion.
 

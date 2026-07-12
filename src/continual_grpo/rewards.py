@@ -131,6 +131,8 @@ def code_rewards(completions: list[str], answers: list[str]) -> list[float]:
 def prepare_task(spec: dict, seed: int):
     if spec.get("name") == "math":
         ds = load_dataset(spec["dataset"], spec.get("subset"), split=spec.get("split", "train"))
+        if spec.get("level"):
+            ds = ds.filter(lambda row: str(row.get("level")) == str(spec["level"]))
         limit = int(spec.get("max_samples", 0))
         if limit:
             ds = ds.shuffle(seed=seed).select(range(min(limit, len(ds))))

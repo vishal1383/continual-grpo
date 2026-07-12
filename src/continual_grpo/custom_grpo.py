@@ -57,14 +57,23 @@ def _reward_values(task_name: str, texts: list[str], gold: list[str]):
     return correctness_reward(texts, gold), format_reward(texts)
 
 
-def _collect_rollout_buffer(model, tokenizer, rows, task_name: str, cfg: dict) -> list[dict]:
-    """Collect fixed on-policy trajectories and their sampler log-probabilities."""
+def _collect_rollout_buffer(model, tokenizer, rows, task_spec: dict, cfg: dict) -> list[dict]:
+    """Collect fixed on-policy trajectories and their sampler log-probabilities.
+
+    ``min_signal_groups`` (task-level) stops collection early once that many
+    groups carry reward variance — the smoke configs use it so a tiny buffer
+    is still guaranteed to exercise nonzero advantages.
+    """
+    task_name = task_spec["name"]
     k = int(cfg.get("num_generations", 4))
     prompt_batch = int(cfg.get("prompt_batch_size", 1))
     temperature = float(cfg.get("rollout_temperature", 0.8))
+    min_signal = int(task_spec.get("min_signal_groups", 0))
     buffer = []
     model.eval()
     for start in range(0, len(rows), prompt_batch):
+        if min_signal and sum(item["mixed"] for item in buffer) >= min_signal:
+            break
         batch = rows.select(range(start, min(start + prompt_batch, len(rows))))
         prompts = [tokenizer.apply_chat_template(x, tokenize=False, add_generation_prompt=True)
                    for x in batch["prompt"]]
@@ -178,7 +187,7 @@ def _load_or_collect_buffer(model, tokenizer, rows, task_spec: dict, cfg: dict,
         buffer = _external_rollout_buffer(model, tokenizer, task_spec, cfg)
         source = task_spec["rollout_source"]
     else:
-        buffer = _collect_rollout_buffer(model, tokenizer, rows, task_spec["name"], cfg)
+        buffer = _collect_rollout_buffer(model, tokenizer, rows, task_spec, cfg)
         source = "self-collected"
     output.mkdir(parents=True, exist_ok=True)
     torch.save(buffer, cache)

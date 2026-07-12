@@ -29,12 +29,12 @@ warmup_ratio: 0.1
 # Two passes over the one-group smoke buffer: pass 1 establishes an update;
 # pass 2 verifies that the fixed-old-policy ratio and clipping are active.
 epochs: 2
-per_device_batch_size: 2
+per_device_batch_size: 4
 gradient_accumulation_steps: 1
 prompt_batch_size: 1
-num_generations: 2
+num_generations: 4
 max_prompt_length: 256
-max_completion_length: 64
+max_completion_length: 256
 rollout_temperature: 0.8
 rollout_top_p: 1.0
 bf16: true
@@ -58,7 +58,9 @@ tasks:
     dataset: DigitalLearningGmbH/MATH-lighteval
     subset: default
     split: train
-    max_samples: 1
+    level: Level 1
+    max_samples: 8
+    min_signal_groups: 1
 eval_tasks: [gsm8k, hendrycks_math, humaneval, bbq_smoke, mmlu]
 eval_limits:
   gsm8k: 1

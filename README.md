@@ -78,7 +78,7 @@ The `methods` list selects which arms train. Each arm trains its own adapters un
 
 All four paths are explicit in `custom_grpo.py`; training does not use TRL.
 
-All arms use the same SGD+momentum optimizer with zero weight decay. This is intentional: decoupled weight decay and Adam's elementwise preconditioning can move an already projected gradient back into protected directions. Spectral arms additionally log retained gradient energy and protected overlap before/after projection. Full GSM8K uses eight generations per prompt and top-p 1.0 so the scored policy matches the sampling distribution.
+All arms use the same AdamW optimizer at 2e-5 with cosine warmup and zero weight decay, matching the original Self-Distillation GRPO runs (SGD+momentum remains selectable via `optimizer: sgd`, but at practical learning rates it moves LoRA weights orders of magnitude less per step). Weight decay stays zero because decoupled decay would move weights along protected directions regardless of the spectral gradient projection; Adam's elementwise preconditioning can still reintroduce some projected components, which is why spectral arms log retained gradient energy and protected overlap before/after projection. Full GSM8K uses top-p 1.0 so the scored policy matches the sampling distribution.
 
 ## Model sizes and smoke evaluation
 

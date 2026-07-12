@@ -20,13 +20,15 @@ the first update.
 from __future__ import annotations
 
 import json
+import math
 import random
 from contextlib import nullcontext
 from pathlib import Path
 
 import torch
 from peft import LoraConfig, get_peft_model
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          get_cosine_schedule_with_warmup)
 
 from .anchors import build_protected_axes
 from .losses import (clipped_grpo_loss, group_advantages, opsd_loss_for_chunk,
@@ -186,7 +188,7 @@ def _load_or_collect_buffer(model, tokenizer, rows, task_spec: dict, cfg: dict,
     return buffer
 
 
-def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
+def _apply_step(model, optimizer, scheduler, axes, use_spectral: bool, cfg: dict,
                 gradient_scale: float = 1.0) -> tuple[float, dict[str, float]]:
     if gradient_scale != 1.0:
         for parameter in model.parameters():
@@ -195,8 +197,11 @@ def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
     spectral_stats = {}
     if use_spectral:
         spectral_stats = transform_gradients(model, axes, int(cfg.get("spectral_target_rank", 1)))
+    spectral_stats = dict(spectral_stats)
+    spectral_stats["lr"] = optimizer.param_groups[0]["lr"]
     grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), float(cfg.get("max_grad_norm", 1.0)))
     optimizer.step()
+    scheduler.step()
     optimizer.zero_grad(set_to_none=True)
     return float(grad_norm), spectral_stats
 
@@ -258,7 +263,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     model, tokenizer = load_policy(model_name, cfg)
     rows = None if task_spec.get("rollout_source") else prepare_task(task_spec, int(cfg.get("seed", 42)))
     parameters = [p for p in model.parameters() if p.requires_grad]
-    optimizer_name = cfg.get("optimizer", "sgd")
+    optimizer_name = cfg.get("optimizer", "adamw")
     if optimizer_name == "sgd":
         optimizer = torch.optim.SGD(parameters, lr=float(cfg.get("learning_rate", 2e-6)),
                                     momentum=float(cfg.get("momentum", 0.9)), weight_decay=0.0)
@@ -292,6 +297,10 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     random.seed(int(cfg.get("seed", 42)))
     rollout_buffer = _load_or_collect_buffer(model, tokenizer, rows, task_spec, cfg, output)
     indices = list(range(len(rollout_buffer)))
+    batches_per_epoch = math.ceil(len(rollout_buffer) / groups_per_chunk)
+    total_steps = max(1, math.ceil(batches_per_epoch / accumulation) * int(cfg.get("epochs", 1)))
+    scheduler = get_cosine_schedule_with_warmup(
+        optimizer, int(total_steps * float(cfg.get("warmup_ratio", 0.1))), total_steps)
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
     for epoch in range(int(cfg.get("epochs", 1))):
@@ -353,7 +362,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
             pending += 1
             if pending == accumulation:
                 global_step += 1
-                grad_norm, spectral_stats = _apply_step(model, optimizer, axes, use_spectral, cfg)
+                grad_norm, spectral_stats = _apply_step(model, optimizer, scheduler, axes, use_spectral, cfg)
                 log = _log_row(global_step, method, window, grad_norm, spectral_stats)
                 print(log, flush=True)
                 _save_log(output / "train_metrics.jsonl", log)
@@ -363,7 +372,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
             global_step += 1
             # Losses were divided by the configured accumulation count. Undo
             # that extra division when the epoch ends with a partial window.
-            grad_norm, spectral_stats = _apply_step(model, optimizer, axes, use_spectral, cfg,
+            grad_norm, spectral_stats = _apply_step(model, optimizer, scheduler, axes, use_spectral, cfg,
                                                     accumulation / pending)
             log = _log_row(global_step, method, window, grad_norm, spectral_stats)
             print(log, flush=True)

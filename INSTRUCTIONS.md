@@ -27,7 +27,7 @@ cp ../outputs_final/_shared_cache/Qwen2.5-7B-Instruct/gsm8k/group_rollouts_e9aea
 
 Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl` (one row per optimizer step).
 
-All four arms use identical SGD+momentum with zero weight decay. Spectral arms additionally log `spectral_retained_energy`, `protected_overlap_before`, and `protected_overlap_after`. Signal diagnostics include `mean_abs_advantage`, `mixed_group_fraction`, and the correctness-only `paired_group_fraction` used by C-OPSD.
+All four arms use identical AdamW (2e-5, cosine schedule with `warmup_ratio` 0.1, zero weight decay), matching the original Self-Distillation GRPO runs; each step also logs its `lr`. Spectral arms additionally log `spectral_retained_energy`, `protected_overlap_before`, and `protected_overlap_after`. Signal diagnostics include `mean_abs_advantage`, `mixed_group_fraction`, and the correctness-only `paired_group_fraction` used by C-OPSD.
 
 Training tasks are GSM8K and MATH (MATH-lighteval); each is trained as its own independent cell from the same base model. Here continual learning means retaining existing capabilities and behavior during reasoning post-training, not sequential GSM8K→MATH adaptation. HumanEval, full MMLU, full BBQ, and the ten-bias suite are held-out retention axes. Batching config keys are all honored: `prompt_batch_size` prompts roll out together with `num_generations` completions each, `per_device_batch_size` bounds scoring/backpropagation chunks, and `gradient_accumulation_steps` controls optimizer cadence.
 

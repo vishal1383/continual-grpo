@@ -11,6 +11,12 @@ copsd       = the same GRPO + KL plus additive contrastive OPSD
 combined    = GRPO + KL + OPSD, then the same spectral transform
 ```
 
+Training first collects a fixed on-policy rollout buffer and its sampler
+token log-probabilities. The buffer is shuffled and reused for the configured
+epochs, following the original Self-Distillation GRPO mechanics. `old_logps`
+remain fixed, so policy ratios and clipping become active after the first
+optimizer update.
+
 Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl` (one row per optimizer step).
 
 All four arms use identical SGD+momentum with zero weight decay. Spectral arms additionally log `spectral_retained_energy`, `protected_overlap_before`, and `protected_overlap_after`. Signal diagnostics include `mean_abs_advantage`, `mixed_group_fraction`, and the correctness-only `paired_group_fraction` used by C-OPSD.

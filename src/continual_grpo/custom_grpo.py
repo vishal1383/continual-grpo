@@ -11,12 +11,11 @@ Batching semantics (all read from the config):
                               pairing is never split
   gradient_accumulation_steps prompt batches accumulated per optimizer step
 
-Scoring divides all logits by the rollout temperature, so the trained,
-old, and reference log-probabilities describe the same tempered policy the
-completions were sampled from. There is exactly one optimizer pass per
-rollout, so the old policy equals the sampler and its log-probabilities are
-the detached policy log-probabilities (no extra forward); the clipped ratio
-becomes active only if multiple updates per rollout are ever added.
+Like the original Self-Distillation implementation, rollouts and sampler
+log-probabilities are collected once before optimization.  The fixed buffer is
+then shuffled and reused for ``epochs`` passes.  Consequently ``old_logps``
+remain fixed while the policy changes, and the clipped ratio is active after
+the first update.
 """
 from __future__ import annotations
 
@@ -53,6 +52,59 @@ def _reward_values(task_name: str, texts: list[str], gold: list[str]):
     if task_name == "math":
         return math_correctness_reward(texts, gold), format_reward(texts)
     return correctness_reward(texts, gold), format_reward(texts)
+
+
+def _collect_rollout_buffer(model, tokenizer, rows, task_name: str, cfg: dict) -> list[dict]:
+    """Collect fixed on-policy trajectories and their sampler log-probabilities."""
+    k = int(cfg.get("num_generations", 4))
+    prompt_batch = int(cfg.get("prompt_batch_size", 1))
+    temperature = float(cfg.get("rollout_temperature", 0.8))
+    buffer = []
+    model.eval()
+    for start in range(0, len(rows), prompt_batch):
+        batch = rows.select(range(start, min(start + prompt_batch, len(rows))))
+        prompts = [tokenizer.apply_chat_template(x, tokenize=False, add_generation_prompt=True)
+                   for x in batch["prompt"]]
+        encoded = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True,
+                            max_length=int(cfg.get("max_prompt_length", 512))).to(model.device)
+        prompt_width = encoded.input_ids.shape[1]
+        expanded_ids = encoded.input_ids.repeat_interleave(k, 0)
+        expanded_mask = encoded.attention_mask.repeat_interleave(k, 0)
+        with torch.no_grad():
+            generated = model.generate(
+                input_ids=expanded_ids, attention_mask=expanded_mask,
+                max_new_tokens=int(cfg.get("max_completion_length", 512)), do_sample=True,
+                temperature=temperature, top_p=float(cfg.get("rollout_top_p", 1.0)),
+                pad_token_id=tokenizer.pad_token_id,
+            )
+            completion_ids = generated[:, prompt_width:]
+            completion_mask = completion_ids.ne(tokenizer.pad_token_id).long()
+            attention_mask = torch.cat([expanded_mask, completion_mask], 1)
+            logits = model(input_ids=generated, attention_mask=attention_mask).logits
+            old_logps = token_logps(logits[:, prompt_width - 1:-1] / temperature,
+                                    completion_ids)
+        texts = tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
+        gold = [answer for answer in batch["answer"] for _ in range(k)]
+        correct_values, format_values = _reward_values(task_name, texts, gold)
+        correct = torch.tensor(correct_values).view(-1, k)
+        formatting = torch.tensor(format_values).view(-1, k)
+        advantages, mixed = group_advantages(correct + formatting)
+        for group in range(len(batch)):
+            lo, hi = group * k, (group + 1) * k
+            buffer.append({
+                "generated": generated[lo:hi].cpu(),
+                "attention_mask": attention_mask[lo:hi].cpu(),
+                "completion_ids": completion_ids[lo:hi].cpu(),
+                "completion_mask": completion_mask[lo:hi].cpu(),
+                "old_logps": old_logps[lo:hi].cpu(),
+                "advantages": advantages[group].cpu(),
+                "correct": correct[group].cpu(),
+                "mixed": bool(mixed[group]),
+                "prompt_width": prompt_width,
+            })
+        del logits, old_logps, generated
+    model.train()
+    return buffer
 
 
 def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
@@ -153,74 +205,56 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     margin = float(cfg.get("opsd_margin", 0.2))
     negative_weight = float(cfg.get("opsd_negative_weight", 0.1))
     opsd_temperature = float(cfg.get("opsd_temperature", 1.0))
-    indices = list(range(len(rows)))
+    # Match the original Self-Distillation design: collect trajectories once,
+    # before any optimizer update, and keep their sampler log-probabilities.
+    # Reset after optional anchor construction so every ablation samples the
+    # same trajectories.
+    torch.manual_seed(int(cfg.get("seed", 42)))
+    random.seed(int(cfg.get("seed", 42)))
+    rollout_buffer = _collect_rollout_buffer(model, tokenizer, rows, task_spec["name"], cfg)
+    indices = list(range(len(rollout_buffer)))
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
     for epoch in range(int(cfg.get("epochs", 1))):
         random.shuffle(indices)
         window = _new_window()
         pending = 0
-        for start in range(0, len(indices), prompt_batch):
-            batch = rows.select(indices[start:start + prompt_batch])
-            chats = batch["prompt"]
-            prompts = [tokenizer.apply_chat_template(x, tokenize=False, add_generation_prompt=True) for x in chats]
-            encoded = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True,
-                                max_length=int(cfg.get("max_prompt_length", 512))).to(model.device)
-            prompt_width = encoded.input_ids.shape[1]
-            expanded_ids = encoded.input_ids.repeat_interleave(k, 0)
-            expanded_mask = encoded.attention_mask.repeat_interleave(k, 0)
-            model.eval()
-            with torch.no_grad():
-                generated = model.generate(
-                    input_ids=expanded_ids, attention_mask=expanded_mask,
-                    max_new_tokens=int(cfg.get("max_completion_length", 512)), do_sample=True,
-                    temperature=temperature,
-                    top_p=float(cfg.get("rollout_top_p", 0.95)), pad_token_id=tokenizer.pad_token_id,
-                )
-            model.train()
-            completion_ids = generated[:, prompt_width:]
-            completion_mask = completion_ids.ne(tokenizer.pad_token_id).long()
-            attention_mask = torch.cat([expanded_mask, completion_mask], 1)
-            texts = tokenizer.batch_decode(completion_ids, skip_special_tokens=True)
-            gold = [answer for answer in batch["answer"] for _ in range(k)]
-            correct_values, format_values = _reward_values(task_spec["name"], texts, gold)
-            correct = torch.tensor(correct_values, device=model.device).view(-1, k)
-            formatting = torch.tensor(format_values, device=model.device).view(-1, k)
-            rewards = correct + formatting
-            advantages, mixed = group_advantages(rewards)
-            paired_groups = (correct.ge(1.0).any(1) & correct.lt(1.0).any(1))
-            mask_all = completion_mask.float()
-            lengths_all = mask_all.sum(1).clamp_min(1)
-            n_groups = rewards.shape[0]
-            batch_seqs = n_groups * k
-            for g0 in range(0, n_groups, groups_per_chunk):
-                g1 = min(g0 + groups_per_chunk, n_groups)
-                sl = slice(g0 * k, g1 * k)
-                logits = model(input_ids=generated[sl], attention_mask=attention_mask[sl]).logits
+        for start in range(0, len(indices), groups_per_chunk):
+            group_items = [rollout_buffer[i] for i in indices[start:start + groups_per_chunk]]
+            # Groups in a collection batch share padded widths; process each
+            # independently so buffers collected in different batches need not.
+            batch_seqs = len(group_items) * k
+            for item in group_items:
+                generated = item["generated"].to(model.device)
+                attention_mask = item["attention_mask"].to(model.device)
+                completion_ids = item["completion_ids"].to(model.device)
+                mask = item["completion_mask"].to(model.device).float()
+                lengths = mask.sum(1).clamp_min(1)
+                old_logps = item["old_logps"].to(model.device)
+                advantages = item["advantages"].to(model.device)
+                correct = item["correct"].to(model.device)
+                prompt_width = item["prompt_width"]
+                logits = model(input_ids=generated, attention_mask=attention_mask).logits
                 completion_logits = logits[:, prompt_width - 1:-1] / temperature
-                policy_logps = token_logps(completion_logits, completion_ids[sl])
-                # Single update per rollout: the sampler is the old policy.
-                old_logps = policy_logps.detach()
+                policy_logps = token_logps(completion_logits, completion_ids)
                 with torch.no_grad(), _adapter_off(model):
                     reference_logits = model(
-                        input_ids=generated[sl], attention_mask=attention_mask[sl],
+                        input_ids=generated, attention_mask=attention_mask,
                     ).logits[:, prompt_width - 1:-1] / temperature
-                    reference_logps = token_logps(reference_logits, completion_ids[sl])
-                mask = mask_all[sl]
-                lengths = lengths_all[sl]
-                flat_adv = advantages[g0:g1].flatten().unsqueeze(1)
+                    reference_logps = token_logps(reference_logits, completion_ids)
+                flat_adv = advantages.unsqueeze(1)
                 grpo_loss = clipped_grpo_loss(policy_logps, old_logps, flat_adv, mask, lengths, clip_eps)
                 kl_loss = reference_kl_loss(policy_logps, reference_logps, mask, lengths)
                 opsd_loss = torch.zeros((), device=model.device)
                 pairs = 0
                 if use_opsd:
                     opsd_loss, pairs = opsd_loss_for_chunk(
-                        correct[g0:g1], k, completion_ids[sl], completion_logits,
+                        correct.unsqueeze(0), k, completion_ids, completion_logits,
                         reference_logits, policy_logps, mask,
                         margin, negative_weight, opsd_temperature,
                     )
                 total = grpo_loss + beta * kl_loss + opsd_weight * opsd_loss
-                chunk_seqs = (g1 - g0) * k
+                chunk_seqs = k
                 (total * (chunk_seqs / (batch_seqs * accumulation))).backward()
                 window["grpo"] += float(grpo_loss.detach()) * chunk_seqs
                 window["kl"] += float(kl_loss.detach()) * chunk_seqs
@@ -229,12 +263,12 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                 window["pairs"] += pairs
                 window["seqs"] += chunk_seqs
                 del logits, completion_logits, reference_logits, policy_logps
-            window["correct"] += float(correct.sum())
-            window["mixed"] += float(mixed.float().sum())
-            window["paired_groups"] += float(paired_groups.float().sum())
-            window["abs_advantage"] += float(advantages.abs().sum())
-            window["length"] += float(lengths_all.sum())
-            window["groups"] += n_groups
+                window["correct"] += float(correct.sum())
+                window["mixed"] += float(item["mixed"])
+                window["paired_groups"] += float(correct.ge(1.0).any() and correct.lt(1.0).any())
+                window["abs_advantage"] += float(advantages.abs().sum())
+                window["length"] += float(lengths.sum())
+                window["groups"] += 1
             pending += 1
             if pending == accumulation:
                 global_step += 1

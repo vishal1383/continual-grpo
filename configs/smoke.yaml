@@ -26,7 +26,9 @@ learning_rate: 1.0e-4
 weight_decay: 0.0
 optimizer: sgd
 momentum: 0.9
-epochs: 1
+# Two passes over the one-group smoke buffer: pass 1 establishes an update;
+# pass 2 verifies that the fixed-old-policy ratio and clipping are active.
+epochs: 2
 per_device_batch_size: 2
 gradient_accumulation_steps: 1
 prompt_batch_size: 1

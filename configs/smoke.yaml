@@ -53,14 +53,13 @@ tasks:
     prompt_field: question
     answer_field: answer
     rollout_source: external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
-    max_samples: 1
+    max_samples: 50
   - name: math
     dataset: DigitalLearningGmbH/MATH-lighteval
     subset: default
     split: train
     level: Level 1
-    max_samples: 8
-    min_signal_groups: 1
+    max_samples: 50
 eval_tasks: [gsm8k, hendrycks_math, humaneval, bbq_smoke, mmlu]
 eval_limits:
   gsm8k: 1

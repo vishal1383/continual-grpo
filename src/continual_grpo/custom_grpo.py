@@ -33,6 +33,7 @@ from .losses import (clipped_grpo_loss, group_advantages, opsd_loss_for_chunk,
                      reference_kl_loss, token_logps)
 from .rewards import (code_rewards, correctness_reward, format_reward,
                       math_correctness_reward, prepare_task)
+from .rollout_io import load_external_groups, original_gsm8k_messages
 from .spectral_update import transform_gradients
 
 
@@ -107,6 +108,84 @@ def _collect_rollout_buffer(model, tokenizer, rows, task_name: str, cfg: dict) -
     return buffer
 
 
+def _external_rollout_buffer(model, tokenizer, task_spec: dict, cfg: dict) -> list[dict]:
+    """Rebuild fixed groups from an original Self-Distillation rollout cache.
+
+    Rewards come from the file's verifier, so advantages match the original
+    run; only the sampler log-probabilities are rescored (the initial LoRA is
+    an identity, so the scoring policy equals the model that sampled them).
+    """
+    groups = load_external_groups(task_spec["rollout_source"], int(cfg.get("seed", 42)),
+                                  int(task_spec.get("max_samples", 0)))
+    temperature = float(cfg.get("rollout_temperature", 0.8))
+    max_completion = int(cfg.get("max_completion_length", 512))
+    buffer = []
+    model.eval()
+    for group in groups:
+        prompt_text = tokenizer.apply_chat_template(
+            original_gsm8k_messages(group["question"]), tokenize=False, add_generation_prompt=True)
+        prompt_ids = tokenizer(prompt_text, return_tensors="pt", truncation=True,
+                               max_length=int(cfg.get("max_prompt_length", 512)),
+                               add_special_tokens=False).input_ids.to(model.device)
+        prompt_width = prompt_ids.shape[1]
+        completion_lists = [
+            tokenizer(text, add_special_tokens=False, truncation=True,
+                      max_length=max_completion - 1).input_ids + [tokenizer.eos_token_id]
+            for text in group["completions"]
+        ]
+        k = len(completion_lists)
+        width = max(len(ids) for ids in completion_lists)
+        completion_ids = torch.full((k, width), tokenizer.pad_token_id,
+                                    dtype=torch.long, device=model.device)
+        for row, ids in enumerate(completion_lists):
+            completion_ids[row, :len(ids)] = torch.tensor(ids, dtype=torch.long, device=model.device)
+        completion_mask = completion_ids.ne(tokenizer.pad_token_id).long()
+        generated = torch.cat([prompt_ids.expand(k, -1), completion_ids], 1)
+        attention_mask = torch.cat(
+            [torch.ones((k, prompt_width), dtype=torch.long, device=model.device), completion_mask], 1)
+        with torch.no_grad():
+            logits = model(input_ids=generated, attention_mask=attention_mask).logits
+            old_logps = token_logps(logits[:, prompt_width - 1:-1] / temperature, completion_ids)
+        correct = torch.tensor(group["correct"]).view(1, k)
+        advantages, mixed = group_advantages(correct)
+        buffer.append({
+            "generated": generated.cpu(),
+            "attention_mask": attention_mask.cpu(),
+            "completion_ids": completion_ids.cpu(),
+            "completion_mask": completion_mask.cpu(),
+            "old_logps": old_logps.cpu(),
+            "advantages": advantages[0].cpu(),
+            "correct": correct[0].cpu(),
+            "mixed": bool(mixed[0]),
+            "prompt_width": prompt_width,
+        })
+        del logits, old_logps, generated
+    model.train()
+    return buffer
+
+
+def _load_or_collect_buffer(model, tokenizer, rows, task_spec: dict, cfg: dict,
+                            output: Path) -> list[dict]:
+    """Build the fixed rollout buffer once per cell and persist it to disk."""
+    cache = output / "rollout_buffer.pt"
+    if cache.exists():
+        buffer = torch.load(cache, map_location="cpu")
+        print(f"Reusing persisted rollout buffer: {len(buffer)} groups ({cache})", flush=True)
+        return buffer
+    if task_spec.get("rollout_source"):
+        buffer = _external_rollout_buffer(model, tokenizer, task_spec, cfg)
+        source = task_spec["rollout_source"]
+    else:
+        buffer = _collect_rollout_buffer(model, tokenizer, rows, task_spec["name"], cfg)
+        source = "self-collected"
+    output.mkdir(parents=True, exist_ok=True)
+    torch.save(buffer, cache)
+    mixed = sum(item["mixed"] for item in buffer)
+    print(f"Rollout buffer: {len(buffer)} groups ({mixed} with signal) from {source}; saved {cache}",
+          flush=True)
+    return buffer
+
+
 def _apply_step(model, optimizer, axes, use_spectral: bool, cfg: dict,
                 gradient_scale: float = 1.0) -> tuple[float, dict[str, float]]:
     if gradient_scale != 1.0:
@@ -177,7 +256,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     torch.manual_seed(int(cfg.get("seed", 42)))
     random.seed(int(cfg.get("seed", 42)))
     model, tokenizer = load_policy(model_name, cfg)
-    rows = prepare_task(task_spec, int(cfg.get("seed", 42)))
+    rows = None if task_spec.get("rollout_source") else prepare_task(task_spec, int(cfg.get("seed", 42)))
     parameters = [p for p in model.parameters() if p.requires_grad]
     optimizer_name = cfg.get("optimizer", "sgd")
     if optimizer_name == "sgd":
@@ -211,7 +290,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     # same trajectories.
     torch.manual_seed(int(cfg.get("seed", 42)))
     random.seed(int(cfg.get("seed", 42)))
-    rollout_buffer = _collect_rollout_buffer(model, tokenizer, rows, task_spec["name"], cfg)
+    rollout_buffer = _load_or_collect_buffer(model, tokenizer, rows, task_spec, cfg, output)
     indices = list(range(len(rollout_buffer)))
     global_step = 0
     optimizer.zero_grad(set_to_none=True)
@@ -223,7 +302,9 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
             group_items = [rollout_buffer[i] for i in indices[start:start + groups_per_chunk]]
             # Groups in a collection batch share padded widths; process each
             # independently so buffers collected in different batches need not.
-            batch_seqs = len(group_items) * k
+            # Group size comes from each buffer entry: external rollout caches
+            # may use a different K than the config's num_generations.
+            batch_seqs = sum(item["completion_ids"].shape[0] for item in group_items)
             for item in group_items:
                 generated = item["generated"].to(model.device)
                 attention_mask = item["attention_mask"].to(model.device)
@@ -249,12 +330,12 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                 pairs = 0
                 if use_opsd:
                     opsd_loss, pairs = opsd_loss_for_chunk(
-                        correct.unsqueeze(0), k, completion_ids, completion_logits,
-                        reference_logits, policy_logps, mask,
+                        correct.unsqueeze(0), completion_ids.shape[0], completion_ids,
+                        completion_logits, reference_logits, policy_logps, mask,
                         margin, negative_weight, opsd_temperature,
                     )
                 total = grpo_loss + beta * kl_loss + opsd_weight * opsd_loss
-                chunk_seqs = k
+                chunk_seqs = completion_ids.shape[0]
                 (total * (chunk_seqs / (batch_seqs * accumulation))).backward()
                 window["grpo"] += float(grpo_loss.detach()) * chunk_seqs
                 window["kl"] += float(kl_loss.detach()) * chunk_seqs

@@ -52,6 +52,7 @@ tasks:
     split: train
     prompt_field: question
     answer_field: answer
+    rollout_source: external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
     max_samples: 1
   - name: math
     dataset: DigitalLearningGmbH/MATH-lighteval

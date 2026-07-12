@@ -56,7 +56,8 @@ def divergence_masks(positive_ids: torch.Tensor, negative_ids: torch.Tensor,
 def clipped_grpo_loss(policy_logps: torch.Tensor, old_logps: torch.Tensor,
                       advantages: torch.Tensor, mask: torch.Tensor,
                       lengths: torch.Tensor, clip_eps: float) -> torch.Tensor:
-    ratio = torch.exp(policy_logps - old_logps)
+    # Clamp like the original: fixed-buffer epochs can drift far off-policy.
+    ratio = torch.exp((policy_logps - old_logps).clamp(-20.0, 20.0))
     pg = torch.minimum(ratio * advantages, ratio.clamp(1 - clip_eps, 1 + clip_eps) * advantages)
     return -((pg * mask).sum(1) / lengths).mean()
 

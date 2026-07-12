@@ -31,7 +31,7 @@ gradient_accumulation_steps: 8
 prompt_batch_size: 1
 num_generations: 8
 max_prompt_length: 512
-max_completion_length: 256
+max_completion_length: 512
 rollout_temperature: 0.8
 rollout_top_p: 1.0
 bf16: true
@@ -49,6 +49,7 @@ tasks:
     split: train
     prompt_field: question
     answer_field: answer
+    rollout_source: external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
     max_samples: 256
   - name: math
     dataset: DigitalLearningGmbH/MATH-lighteval

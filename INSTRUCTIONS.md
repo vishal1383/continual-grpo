@@ -17,6 +17,14 @@ epochs, following the original Self-Distillation GRPO mechanics. `old_logps`
 remain fixed, so policy ratios and clipping become active after the first
 optimizer update.
 
+GSM8K reuses the original Self-Distillation rollouts instead of regenerating them: the task's `rollout_source` points at a copy of `outputs_final/_shared_cache/Qwen2.5-7B-Instruct/gsm8k/group_rollouts_e9aea939dd/grpo_rollouts.jsonl` (7473 prompts x K=4, 1149 mixed-reward groups). The loader rebuilds each group with the verbatim original system/user prompt, keeps the file's verifier rewards (so advantages match the original run), rescores sampler log-probabilities once under this repo's tempered-scoring convention, and persists the finished buffer to `rollout_buffer.pt` in the cell directory so neither collection nor rescoring repeats on resume. MATH has no pre-existing rollouts and self-collects (also persisted per cell). Copy the cache into place with:
+
+```bash
+mkdir -p external_rollouts
+cp ../outputs_final/_shared_cache/Qwen2.5-7B-Instruct/gsm8k/group_rollouts_e9aea939dd/grpo_rollouts.jsonl \
+   external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
+```
+
 Every cell logs separate policy, KL, OPSD, mixed-group, reward, and gradient metrics in `train_metrics.jsonl` (one row per optimizer step).
 
 All four arms use identical SGD+momentum with zero weight decay. Spectral arms additionally log `spectral_retained_energy`, `protected_overlap_before`, and `protected_overlap_after`. Signal diagnostics include `mean_abs_advantage`, `mixed_group_fraction`, and the correctness-only `paired_group_fraction` used by C-OPSD.

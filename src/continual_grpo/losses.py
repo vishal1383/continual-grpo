@@ -55,17 +55,28 @@ def divergence_masks(positive_ids: torch.Tensor, negative_ids: torch.Tensor,
 
 def clipped_grpo_loss(policy_logps: torch.Tensor, old_logps: torch.Tensor,
                       advantages: torch.Tensor, mask: torch.Tensor,
-                      lengths: torch.Tensor, clip_eps: float) -> torch.Tensor:
+                      lengths: torch.Tensor, clip_eps: float) -> tuple[torch.Tensor, float]:
+    """Return the batch-mean surrogate and the mean per-sequence magnitude.
+
+    Whole-group batches make signed per-sequence terms cancel in the mean at
+    the on-policy point, so the magnitude is the visible per-step signal (the
+    original run displayed nonzero loss only because its shuffled batches
+    split groups and left the cancellation incomplete).
+    """
     # Clamp like the original: fixed-buffer epochs can drift far off-policy.
     ratio = torch.exp((policy_logps - old_logps).clamp(-20.0, 20.0))
     pg = torch.minimum(ratio * advantages, ratio.clamp(1 - clip_eps, 1 + clip_eps) * advantages)
-    return -((pg * mask).sum(1) / lengths).mean()
+    per_sequence = -(pg * mask).sum(1) / lengths
+    return per_sequence.mean(), float(per_sequence.detach().abs().mean())
 
 
-def reference_kl_loss(policy_logps: torch.Tensor, reference_logps: torch.Tensor,
+def reference_kl_loss(policy_logits: torch.Tensor, reference_logits: torch.Tensor,
                       mask: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-    log_ratio = reference_logps - policy_logps
-    per_token = torch.exp(log_ratio) - log_ratio - 1
+    """Exact dense KL D_KL(pi_theta || pi_ref) over token distributions,
+    matching the original run's _vanilla_grpo_kl."""
+    logp = F.log_softmax(policy_logits.float(), -1)
+    logq = F.log_softmax(reference_logits.float(), -1)
+    per_token = (logp.exp() * (logp - logq)).sum(-1)
     return ((per_token * mask).sum(1) / lengths).mean()
 
 

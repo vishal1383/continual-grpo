@@ -216,7 +216,7 @@ def _apply_step(model, optimizer, scheduler, axes, use_spectral: bool, cfg: dict
 
 
 def _new_window() -> dict:
-    return {"grpo": 0.0, "kl": 0.0, "opsd": 0.0, "total": 0.0, "pairs": 0,
+    return {"grpo": 0.0, "grpo_abs": 0.0, "kl": 0.0, "opsd": 0.0, "total": 0.0, "pairs": 0,
             "correct": 0.0, "mixed": 0.0, "paired_groups": 0.0, "abs_advantage": 0.0,
             "length": 0.0, "seqs": 0, "groups": 0}
 
@@ -227,7 +227,9 @@ def _log_row(step: int, method: str, window: dict, grad_norm: float,
     groups = max(1, window["groups"])
     row = {
         "step": step, "method": method, "total_loss": window["total"] / seqs,
-        "grpo_policy_loss": window["grpo"] / seqs, "reference_kl_loss": window["kl"] / seqs,
+        "grpo_policy_loss": window["grpo"] / seqs,
+        "grpo_seq_abs_loss": window["grpo_abs"] / seqs,
+        "reference_kl_loss": window["kl"] / seqs,
         "opsd_loss": window["opsd"] / seqs, "opsd_pairs": window["pairs"],
         "correct_fraction": window["correct"] / seqs, "mixed_group_fraction": window["mixed"] / groups,
         "paired_group_fraction": window["paired_groups"] / groups,
@@ -340,10 +342,9 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                     reference_logits = model(
                         input_ids=generated, attention_mask=attention_mask,
                     ).logits[:, prompt_width - 1:-1] / temperature
-                    reference_logps = token_logps(reference_logits, completion_ids)
                 flat_adv = advantages.unsqueeze(1)
-                grpo_loss = clipped_grpo_loss(policy_logps, old_logps, flat_adv, mask, lengths, clip_eps)
-                kl_loss = reference_kl_loss(policy_logps, reference_logps, mask, lengths)
+                grpo_loss, grpo_abs = clipped_grpo_loss(policy_logps, old_logps, flat_adv, mask, lengths, clip_eps)
+                kl_loss = reference_kl_loss(completion_logits, reference_logits, mask, lengths)
                 opsd_loss = torch.zeros((), device=model.device)
                 pairs = 0
                 if use_opsd:
@@ -356,6 +357,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
                 chunk_seqs = completion_ids.shape[0]
                 (total * (chunk_seqs / (batch_seqs * accumulation))).backward()
                 window["grpo"] += float(grpo_loss.detach()) * chunk_seqs
+                window["grpo_abs"] += grpo_abs * chunk_seqs
                 window["kl"] += float(kl_loss.detach()) * chunk_seqs
                 window["opsd"] += float(opsd_loss.detach()) * chunk_seqs
                 window["total"] += float(total.detach()) * chunk_seqs

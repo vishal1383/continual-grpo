@@ -9,11 +9,14 @@ case "$MODE" in
   smoke)
     CONFIG="configs/smoke.yaml"
     ;;
+  small)
+    CONFIG="configs/small.yaml"
+    ;;
   full)
     CONFIG="configs/full.yaml"
     ;;
   *)
-    echo "Usage: $0 smoke|full" >&2
+    echo "Usage: $0 smoke|small|full" >&2
     exit 2
     ;;
 esac

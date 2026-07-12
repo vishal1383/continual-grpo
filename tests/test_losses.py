@@ -37,14 +37,25 @@ def test_group_advantages_zero_for_uniform_groups():
     assert mixed.tolist() == [False, True]
 
 
-def test_clipped_grpo_loss_zero_at_on_policy_point():
+def test_clipped_grpo_loss_zero_mean_but_visible_magnitude_on_policy():
     policy = torch.tensor([[-1.0, -2.0], [-1.5, -0.5]])
     adv = torch.tensor([[1.0], [-1.0]])
     mask = torch.ones(2, 2)
     lengths = mask.sum(1)
-    loss = clipped_grpo_loss(policy, policy.detach(), adv, mask, lengths, 0.2)
+    loss, seq_abs = clipped_grpo_loss(policy, policy.detach(), adv, mask, lengths, 0.2)
     assert float(loss.detach()) == 0.0
+    assert seq_abs == 1.0
     assert torch.isfinite(loss)
+
+
+def test_reference_kl_is_zero_for_identical_logits_and_positive_otherwise():
+    from continual_grpo.losses import reference_kl_loss
+    torch.manual_seed(0)
+    logits = torch.randn(2, 3, 7)
+    mask = torch.ones(2, 3)
+    lengths = mask.sum(1)
+    assert float(reference_kl_loss(logits, logits, mask, lengths)) < 1e-9
+    assert float(reference_kl_loss(logits, logits + torch.randn_like(logits), mask, lengths)) > 0.0
 
 
 def test_contrastive_opsd_loss_is_finite():

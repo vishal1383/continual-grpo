@@ -54,6 +54,15 @@ def test_mixed_group_sizes_are_rejected():
             raise AssertionError("expected ValueError for mixed group sizes")
 
 
+def test_rollout_source_resolves_per_model_maps_and_plain_paths():
+    from continual_grpo.rollout_io import resolve_rollout_source
+    mapped = {"rollout_source": {"m/a": "a.jsonl", "m/b": "b.jsonl"}}
+    assert resolve_rollout_source(mapped, "m/a") == "a.jsonl"
+    assert resolve_rollout_source(mapped, "m/c") is None
+    assert resolve_rollout_source({"rollout_source": "x.jsonl"}, "m/a") == "x.jsonl"
+    assert resolve_rollout_source({}, "m/a") is None
+
+
 def test_messages_use_verbatim_original_prompt():
     msgs = original_gsm8k_messages("What is 2+2?")
     assert msgs[0]["content"] == ORIGINAL_GSM8K_SYSTEM

@@ -35,7 +35,8 @@ from .losses import (clipped_grpo_loss, group_advantages, opsd_loss_for_chunk,
                      reference_kl_loss, token_logps)
 from .rewards import (code_rewards, correctness_reward, format_reward,
                       math_correctness_reward, prepare_task)
-from .rollout_io import load_external_groups, original_gsm8k_messages
+from .rollout_io import (load_external_groups, original_gsm8k_messages,
+                         resolve_rollout_source)
 from .spectral_update import transform_gradients
 
 
@@ -272,6 +273,7 @@ def train_cell(model_name: str, task_spec: dict, method: str, cfg: dict, output:
     torch.manual_seed(int(cfg.get("seed", 42)))
     random.seed(int(cfg.get("seed", 42)))
     model, tokenizer = load_policy(model_name, cfg)
+    task_spec = {**task_spec, "rollout_source": resolve_rollout_source(task_spec, model_name)}
     rows = None if task_spec.get("rollout_source") else prepare_task(task_spec, int(cfg.get("seed", 42)))
     parameters = [p for p in model.parameters() if p.requires_grad]
     optimizer_name = cfg.get("optimizer", "adamw")

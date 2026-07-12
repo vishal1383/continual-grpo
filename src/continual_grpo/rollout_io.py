@@ -25,6 +25,15 @@ ORIGINAL_GSM8K_USER = (
 )
 
 
+def resolve_rollout_source(task_spec: dict, model_name: str) -> str | None:
+    """A task's rollout_source is either one path or a {model_name: path} map,
+    since reused trajectories must come from the model being trained."""
+    source = task_spec.get("rollout_source")
+    if isinstance(source, dict):
+        return source.get(model_name)
+    return source
+
+
 def original_gsm8k_messages(question: str) -> list[dict]:
     return [
         {"role": "system", "content": ORIGINAL_GSM8K_SYSTEM},

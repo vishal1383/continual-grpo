@@ -1,7 +1,8 @@
 methods: [grpo, skill_ortho, copsd, combined]
 models:
+  - Qwen/Qwen2.5-3B-Instruct
   - Qwen/Qwen2.5-7B-Instruct
-output_dir: outputs/full_7b_handwritten_adamw
+output_dir: outputs/full_handwritten_adamw
 protected_anchors:
   - name: mmlu
     dataset: cais/mmlu
@@ -50,7 +51,9 @@ tasks:
     split: train
     prompt_field: question
     answer_field: answer
-    rollout_source: external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
+    rollout_source:
+      Qwen/Qwen2.5-3B-Instruct: external_rollouts/qwen2.5-3b_gsm8k_k4.jsonl
+      Qwen/Qwen2.5-7B-Instruct: external_rollouts/qwen2.5-7b_gsm8k_k4.jsonl
     max_samples: 0
   - name: math
     dataset: DigitalLearningGmbH/MATH-lighteval

@@ -99,6 +99,26 @@ Rebuild explicitly only after changing `Dockerfile`, `pyproject.toml`, or anothe
 docker compose build experiment
 ```
 
+## Watch a run's progress
+
+The pipeline streams to the terminal that launched it; these artifact-based checks work from any other terminal (replace the output root with your config's `output_dir`, e.g. `outputs/smoke_7b_handwritten_adamw` for smoke):
+
+```bash
+# Training: one JSON row per optimizer step, appended live per cell
+tail -f outputs/smoke_7b_handwritten_adamw/*/*/stage_*/train_metrics.jsonl
+
+# Cells finished so far (methods x tasks x models; smoke has 8)
+watch -n 30 'find outputs/smoke_7b_handwritten_adamw -name final_adapter | wc -l'
+
+# Which phase/process is active inside the container
+docker compose exec experiment ps aux | grep python
+
+# GPU utilization
+nvidia-smi
+```
+
+Note `docker compose logs experiment` shows only the container's idle entrypoint, not the exec'd pipeline. Later phases leave their own progress artifacts as they go: `eval/**/results*.json` per lm-eval task, `bias_eval/<cell>/summary.json` accumulating per benchmark, and finally `analysis.csv`, `analysis.md`, and `bias_eval/bias_analysis.csv`.
+
 ## Enter the existing container
 
 ```bash
